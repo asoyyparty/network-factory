@@ -1,0 +1,24 @@
+{
+  "name": "factory-network-control",
+  "version": "1.0.0",
+  "description": "Sistem Monitoring & Kontrol Jaringan Pabrik",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --no-warnings server.js",
+    "dev": "nodemon --no-warnings server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.23.2",
+    "ping": "^0.4.4",
+    "ssh2": "^1.15.0",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  }
+}
