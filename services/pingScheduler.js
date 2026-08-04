@@ -1,5 +1,7 @@
 const ping = require('ping');
 const db   = require('../db/database');
+const { sendAlert } = require('./notifier');
+const { logAudit } = require('./auditLog');
 require('dotenv').config();
 
 const INTERVAL_MS    = parseInt(process.env.PING_INTERVAL_MS) || 30000;
@@ -22,7 +24,7 @@ function broadcast(data) {
 
 /* Ping satu device dan simpan hasilnya */
 async function pingOne(device) {
-  const { id, ip } = device;
+  const { id, nama, ip, status: oldStatus } = device;
   try {
     const cfg = {
       timeout: 3,
@@ -52,6 +54,15 @@ async function pingOne(device) {
       WHERE id = ?
     `, [status, latencyMs, isOnline ? 1 : 0, id]);
 
+    // Check state transition for notification
+    if (oldStatus && oldStatus !== 'Unknown' && oldStatus !== status) {
+      const icon = isOnline ? '✅' : '🚨';
+      const msg = `${icon} *Perubahan Status Perangkat*\n\n*Nama:* ${nama}\n*IP:* ${ip}\n*Status Baru:* ${status}\n*Waktu:* ${new Date().toLocaleString('id-ID')}`;
+      
+      sendAlert(msg);
+      logAudit('system', 'Status Changed', nama, `Status berubah dari ${oldStatus} menjadi ${status}`);
+    }
+
     return { device_id: id, ip, online: isOnline, latency_ms: latencyMs, status };
   } catch (err) {
     console.error(`[Ping] Error ${ip}:`, err.message);
@@ -66,7 +77,7 @@ async function runCycle() {
 
   try {
     const [devices] = await db.execute(`
-      SELECT id, ip FROM devices
+      SELECT id, nama, ip, status FROM devices
       WHERE ip IS NOT NULL AND ip != ''
     `);
 
@@ -93,6 +104,12 @@ async function runCycle() {
       DELETE FROM ping_history
       WHERE pinged_at < DATE_SUB(NOW(), INTERVAL ? DAY)
     `, [HISTORY_DAYS]);
+
+    // Bersihkan audit logs yang lebih dari 30 hari
+    await db.execute(`
+      DELETE FROM audit_logs
+      WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
+    `);
 
   } catch (err) {
     console.error('[Ping] Error siklus:', err.message);

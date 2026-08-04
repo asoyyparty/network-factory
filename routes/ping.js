@@ -101,4 +101,55 @@ router.get('/summary', async (req, res) => {
   }
 });
 
+/* ── GET /api/ping/sla-report ───────────────────────────────── */
+router.get('/sla-report', async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 7;
+    
+    // Compute total pings, online pings, and average latency per device over the last X days
+    const sql = `
+      SELECT 
+        d.id as device_id,
+        d.nama as device_name,
+        d.loc_id as location,
+        d.ip as ip_address,
+        COUNT(p.id) as total_samples,
+        SUM(CASE WHEN p.is_online = 1 THEN 1 ELSE 0 END) as online_samples,
+        SUM(CASE WHEN p.is_online = 0 THEN 1 ELSE 0 END) as offline_samples,
+        ROUND(AVG(p.latency_ms), 1) as avg_latency
+      FROM devices d
+      LEFT JOIN ping_history p ON d.id = p.device_id AND p.pinged_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+      WHERE d.ip IS NOT NULL AND d.ip != ''
+      GROUP BY d.id
+      ORDER BY d.loc_id, d.nama
+    `;
+    
+    const [rows] = await db.execute(sql, [days]);
+    
+    // Calculate uptime percentage and estimate downtime
+    const report = rows.map(r => {
+      let uptime_percent = 0;
+      let downtime_minutes = 0;
+      
+      if (r.total_samples > 0) {
+        uptime_percent = (r.online_samples / r.total_samples) * 100;
+        // Ping scheduler runs roughly every 30 seconds (or interval in env)
+        const pingIntervalSeconds = parseInt(process.env.PING_INTERVAL_MS || 30000) / 1000;
+        downtime_minutes = (r.offline_samples * pingIntervalSeconds) / 60;
+      }
+      
+      return {
+        ...r,
+        uptime_percent: parseFloat(uptime_percent.toFixed(2)),
+        downtime_minutes: Math.round(downtime_minutes)
+      };
+    });
+    
+    res.json({ report, period_days: days });
+  } catch (err) {
+    console.error('[SLA Report Error]', err);
+    res.status(500).json({ error: 'Gagal membuat laporan SLA' });
+  }
+});
+
 module.exports = router;

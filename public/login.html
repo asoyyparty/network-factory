@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login — Sistem Kontrol Jaringan Pabrik</title>
+  <link rel="icon" type="image/png" href="/assets/cba-logo.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -35,12 +36,17 @@
       justify-content: center;
       min-height: 100vh;
       background-image:
-        radial-gradient(ellipse 80% 60% at 50% -10%, rgba(47,184,198,.13), transparent),
+        radial-gradient(ellipse 80% 60% at 50% -10%, rgba(47,184,198,.15), transparent),
         linear-gradient(rgba(22,50,74,.45) 1px, transparent 1px),
         linear-gradient(90deg, rgba(22,50,74,.45) 1px, transparent 1px);
-      background-size: 100% 100%, 34px 34px, 34px 34px;
-      background-attachment: fixed;
+      background-size: 100% 100%, 40px 40px, 40px 40px;
       overflow: hidden;
+      animation: grid-move 20s linear infinite;
+    }
+
+    @keyframes grid-move {
+      0% { background-position: 0 0, 0 0, 0 0; }
+      100% { background-position: 0 0, 40px 40px, 40px 40px; }
     }
 
     /* ── Animated grid lines ── */
@@ -78,17 +84,33 @@
     }
 
     /* ── Login card ── */
+    @keyframes card-enter {
+      from { opacity: 0; transform: translateY(40px) scale(0.95); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    
     .card {
       position: relative;
       z-index: 10;
       width: 100%;
       max-width: 400px;
       padding: 40px 36px 36px;
-      background: rgba(14,24,41,.92);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      backdrop-filter: blur(20px);
-      box-shadow: 0 0 0 1px rgba(47,184,198,.08), 0 40px 80px rgba(0,0,0,.5);
+      background: rgba(14,24,41,.85);
+      border: 1px solid rgba(47,184,198,.2);
+      border-radius: 16px;
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      box-shadow: 0 0 0 1px rgba(47,184,198,.08), 0 40px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.05);
+      animation: card-enter 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+    
+    /* Glowing top edge */
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 10%; right: 10%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(47,184,198,.6), transparent);
     }
 
     /* ── Brand ── */
@@ -99,35 +121,17 @@
       margin-bottom: 32px;
     }
 
-    .logo {
+    .logo-img {
       width: 44px; height: 44px;
-      border: 2px solid var(--accent);
-      border-radius: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      position: relative;
+      object-fit: contain;
       flex-shrink: 0;
-      animation: pulse-border 2s ease-in-out infinite;
+      filter: drop-shadow(0 0 8px rgba(47,184,198,.4));
+      animation: float-logo 4s ease-in-out infinite;
     }
-    .logo::before {
-      content: '';
-      width: 8px; height: 8px;
-      background: var(--accent);
-      border-radius: 50%;
-      box-shadow: 0 0 12px var(--accent);
-    }
-    .logo::after {
-      content: '';
-      position: absolute;
-      width: 22px; height: 22px;
-      border: 1.5px solid var(--accent2);
-      border-radius: 50%;
-    }
-
-    @keyframes pulse-border {
-      0%,100% { box-shadow: 0 0 0 0 rgba(47,184,198,.4); }
-      50%      { box-shadow: 0 0 0 8px rgba(47,184,198,0); }
+    
+    @keyframes float-logo {
+      0%, 100% { transform: translateY(0); filter: drop-shadow(0 0 8px rgba(47,184,198,.4)); }
+      50% { transform: translateY(-4px); filter: drop-shadow(0 4px 12px rgba(47,184,198,.7)); }
     }
 
     .brand-text h1 {
@@ -168,42 +172,55 @@
     }
     .field input {
       width: 100%;
-      padding: 11px 14px;
-      background: rgba(255,255,255,.04);
-      border: 1px solid var(--border);
+      padding: 12px 14px;
+      background: rgba(14,24,41,0.6);
+      border: 1px solid rgba(47,184,198,0.2);
       border-radius: 6px;
       color: var(--text);
       font-family: var(--mono);
       font-size: 13px;
-      transition: border-color .2s, box-shadow .2s;
+      transition: all .3s cubic-bezier(0.4, 0, 0.2, 1);
       outline: none;
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+    }
+    .field input:hover {
+      border-color: rgba(47,184,198,0.5);
+      background: rgba(255,255,255,0.03);
     }
     .field input:focus {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(47,184,198,.15);
+      box-shadow: 0 0 15px rgba(47,184,198,.15), inset 0 2px 4px rgba(0,0,0,0.3);
+      transform: translateY(-1px);
+      background: rgba(255,255,255,0.05);
     }
-    .field input::placeholder { color: rgba(90,122,152,.6); }
+    .field input::placeholder { color: rgba(90,122,152,.5); transition: color 0.3s; }
+    .field input:focus::placeholder { color: rgba(90,122,152,.2); }
 
     /* ── Submit button ── */
     .btn-login {
       width: 100%;
-      padding: 13px;
+      padding: 14px;
       background: var(--accent);
       border: none;
-      border-radius: 6px;
+      border-radius: 8px;
       color: #04202a;
       font-family: var(--mono);
       font-size: 13px;
       font-weight: 700;
       cursor: pointer;
       letter-spacing: .5px;
-      transition: background .2s, transform .1s;
+      transition: all .25s cubic-bezier(0.4, 0, 0.2, 1);
       margin-top: 8px;
       position: relative;
       overflow: hidden;
+      box-shadow: 0 4px 15px rgba(47,184,198,0.2);
     }
-    .btn-login:hover { background: #3fd0e0; }
-    .btn-login:active { transform: scale(.98); }
+    .btn-login:hover { 
+      background: #3fd0e0; 
+      box-shadow: 0 8px 25px rgba(47,184,198,0.4);
+      transform: translateY(-2px);
+    }
+    .btn-login:active { transform: translateY(1px) scale(.98); box-shadow: 0 2px 10px rgba(47,184,198,0.2); }
     .btn-login:disabled { opacity: .6; cursor: not-allowed; }
     .btn-login.loading::after {
       content: '';
@@ -244,16 +261,38 @@
     }
     .status-dot {
       display: inline-block;
+      position: relative;
       width: 6px; height: 6px;
       background: var(--ok);
       border-radius: 50%;
-      margin-right: 5px;
+      margin-right: 8px;
       box-shadow: 0 0 8px var(--ok);
-      animation: blink 2s ease-in-out infinite;
     }
-    @keyframes blink {
-      0%,100% { opacity: 1; }
-      50%      { opacity: .4; }
+    .status-dot::after {
+      content: '';
+      position: absolute;
+      inset: -4px;
+      border-radius: 50%;
+      border: 1px solid var(--ok);
+      animation: radar-ping 2.5s ease-out infinite;
+    }
+    @keyframes radar-ping {
+      0% { transform: scale(0.5); opacity: 1; }
+      100% { transform: scale(2.8); opacity: 0; }
+    }
+    .icon-btn {
+      background: rgba(14,24,41,0.6);
+      border: 1px solid rgba(47,184,198,0.2);
+      color: var(--muted);
+      width: 42px; height: 42px;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .icon-btn:hover {
+      border-color: rgba(47,184,198,0.5);
+      color: var(--accent);
     }
   </style>
 </head>
@@ -263,7 +302,7 @@
 
   <div class="card">
     <div class="brand">
-      <div class="logo"></div>
+      <img src="/assets/cba-logo.png" alt="CBA Logo" class="logo-img">
       <div class="brand-text">
         <h1>FACTORY NETCONTROL</h1>
         <p>Sistem Monitoring &amp; Kontrol Jaringan</p>
@@ -272,27 +311,44 @@
 
     <p class="form-title">// Autentikasi Pengguna</p>
 
-    <form id="login-form" autocomplete="on">
+    <form id="login-form" autocomplete="off">
       <div class="field">
         <label for="username">Username</label>
         <input type="text" id="username" name="username"
-               placeholder="masukkan username" autocomplete="username" required>
+               placeholder="masukkan username" autocomplete="off" required>
       </div>
       <div class="field">
         <label for="password">Password</label>
-        <input type="password" id="password" name="password"
-               placeholder="••••••••" autocomplete="current-password" required>
+        <div style="display:flex;gap:6px">
+          <input type="password" id="password" name="password"
+                 placeholder="••••••••" autocomplete="new-password" required style="flex:1">
+          <button type="button" class="icon-btn" onclick="togglePasswordVisibility('password', this)" title="Tampilkan Password" style="flex-shrink:0;height:42px;width:42px;display:flex;align-items:center;justify-content:center">👁️</button>
+        </div>
       </div>
-      <button type="submit" class="btn-login" id="btn-login">Masuk ke Sistem</button>
-      <div class="error-msg" id="error-msg"></div>
+      <button type="submit" id="btn-login" class="btn-login">Masuk ke Sistem</button>
+      <div class="error-msg" id="error-msg">Username atau password salah.</div>
     </form>
 
     <div class="card-footer">
-      <span class="status-dot"></span>Sistem aktif &amp; terhubung ke jaringan lokal
+      <span class="status-dot"></span>Sistem Jaringan Pabrik CBA
     </div>
   </div>
 
 <script>
+  function togglePasswordVisibility(id, btn) {
+    const input = document.getElementById(id);
+    if (!input) return;
+    if (input.type === 'password') {
+      input.type = 'text';
+      btn.innerHTML = '🙈';
+      btn.title = 'Sembunyikan Password';
+    } else {
+      input.type = 'password';
+      btn.innerHTML = '👁️';
+      btn.title = 'Tampilkan Password';
+    }
+  }
+
   // Jika sudah login, langsung redirect
   (function() {
     const token = localStorage.getItem('factory_jwt');

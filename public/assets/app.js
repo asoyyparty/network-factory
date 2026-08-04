@@ -19,6 +19,58 @@
   }
 })();
 
+/* ── 0. GLOBAL MODAL HELPERS ──────────────────────────────────── */
+/* Safe backdrop close: track mousedown origin to prevent
+   accidental close when dragging text inside the modal */
+(function setupModalBackdrop() {
+  const closeFns = {
+    'history'  : () => closeHistoryModal(),
+    'reboot'   : () => closeRebootModal(),
+    'changepwd': () => closeChangePwdModal(),
+    'scan'     : () => closeScanModal(),
+    'device'   : () => closeDeviceForm()
+  };
+  let _downTarget = null;
+  document.addEventListener('mousedown', e => { _downTarget = e.target; });
+  document.addEventListener('click', e => {
+    const overlay = e.target.closest('.modal-overlay');
+    if (!overlay) return;                          // didn't click an overlay
+    const modal   = overlay.querySelector('.modal');
+    if (!modal)   return;
+    /* Only close if BOTH mousedown AND click originated on the overlay itself */
+    if (_downTarget === overlay && e.target === overlay) {
+      const key = overlay.dataset.modal;
+      if (closeFns[key]) closeFns[key]();
+    }
+  });
+  /* Escape key closes the topmost open modal */
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    const open = [...document.querySelectorAll('.modal-overlay.open')];
+    if (!open.length) return;
+    const top = open[open.length - 1];
+    const key = top.dataset.modal;
+    if (closeFns[key]) closeFns[key]();
+  });
+})();
+
+/* Ripple effect on buttons */
+(function setupRipple() {
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('button, .bcard-btn, .tab-btn, .loc-item');
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const r = document.createElement('span');
+    r.className = 'ripple-wave';
+    const size = Math.max(rect.width, rect.height) * 2;
+    r.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX-rect.left-size/2}px;top:${e.clientY-rect.top-size/2}px`;
+    btn.style.position = btn.style.position || 'relative';
+    btn.style.overflow = 'hidden';
+    btn.appendChild(r);
+    r.addEventListener('animationend', () => r.remove());
+  });
+})();
+
 /* ── 2. API CLIENT ─────────────────────────────────────────────────── */
 const api = {
   _getToken() { return localStorage.getItem('factory_jwt'); },
@@ -53,11 +105,11 @@ const api = {
 /* ── 3. KONSTANTA TOPOLOGI (sama seperti versi asli) ───────────────── */
 const ZONES = [
   {key:'PRODUKSI', label:'Area Produksi Utama'},
-  {key:'A', label:'Zona A'},{key:'B', label:'Zona B'},
-  {key:'C', label:'Zona C'},{key:'D', label:'Zona D'},
-  {key:'E', label:'Zona E'},{key:'F', label:'Zona F'},
-  {key:'G', label:'Zona G'},{key:'H', label:'Zona H'},
-  {key:'I', label:'Zona I'},{key:'J', label:'Zona J'},
+  {key:'A', label:'Gedung A'},{key:'B', label:'Gedung B'},
+  {key:'C', label:'Gedung C'},{key:'D', label:'Gedung D'},
+  {key:'E', label:'Gedung E'},{key:'F', label:'Gedung F'},
+  {key:'G', label:'Gedung G'},{key:'H', label:'Gedung H'},
+  {key:'I', label:'Gedung I'},{key:'J', label:'Gedung J'},
   {key:'SECURITY', label:'Keamanan'},
   {key:'MESS', label:'Mess Karyawan'},
   {key:'GUDANG_EKS', label:'Gudang Eksternal'},
@@ -175,13 +227,13 @@ const NETWORK_TREE = B('GUDANG IT', 'GUDANG IT', [
   ])
 ]);
 
-const DEVICE_TYPES = ['Router','Switch','Access Point','Server','CCTV','Modem/ONT','Lainnya'];
-const OS_TYPES     = [{v:'mikrotik',l:'MikroTik'},{v:'linux',l:'Linux'},{v:'openwrt',l:'OpenWRT'},{v:'generic',l:'Generic'}];
+let DEVICE_TYPES = [];
+let OS_TYPES     = [];
 const STATUS_LIST  = ['Online','Offline','Maintenance'];
 const STATUS_COLOR = {Online:'var(--ok)', Offline:'var(--alert)', Maintenance:'var(--warn)', Unknown:'var(--idle)'};
 
 /* ── 4. STATE ──────────────────────────────────────────────────────── */
-let state = { locations: SEED_LOCATIONS, devices: {} };
+let state = { locations: SEED_LOCATIONS, devices: {}, deviceTypes: [], deviceOs: [] };
 let currentLocId    = null;
 let editingDeviceId = null;
 let currentUser     = null;
@@ -195,12 +247,22 @@ function escapeHtml(str) {
   return d.innerHTML;
 }
 
-/* ── 5. TOAST ──────────────────────────────────────────────────────── */
+/* ── 5. TOAST ──────────────────────────────────── */
 function showToast(msg, type='info') {
   const t = $('#toast');
-  t.textContent = msg;
+  t.innerHTML = `<span class="toast-msg">${msg}</span><div class="toast-progress"></div>`;
   t.className = 'toast show toast-'+type;
   clearTimeout(t._t);
+  /* Animate progress bar */
+  const bar = t.querySelector('.toast-progress');
+  if (bar) {
+    bar.style.transition = 'none';
+    bar.style.width = '100%';
+    requestAnimationFrame(() => {
+      bar.style.transition = 'width 2.8s linear';
+      bar.style.width = '0%';
+    });
+  }
   t._t = setTimeout(() => t.classList.remove('show'), 2800);
 }
 
@@ -266,11 +328,27 @@ function handlePingUpdate(results) {
   renderStats();
   renderSidebar();
   renderTopology();
-  renderGridDashboard();
-  if (currentLocId) renderDetail();
+  refreshActiveView();
 }
 
 /* ── 7. DATA MANAGEMENT (API-based) ───────────────────────────────── */
+async function loadOptions() {
+  try {
+    const resTypes = await api.get('/api/devices/types');
+    if (resTypes && resTypes.ok) {
+      state.deviceTypes = (await resTypes.json()).types;
+      DEVICE_TYPES = state.deviceTypes;
+    }
+    const resOs = await api.get('/api/devices/os');
+    if (resOs && resOs.ok) {
+      state.deviceOs = (await resOs.json()).os;
+      OS_TYPES = state.deviceOs.map(o => ({ v: o.id, l: o.name }));
+    }
+  } catch (e) {
+    console.error('Gagal memuat opsi:', e);
+  }
+}
+
 async function loadDevices() {
   const res = await api.get('/api/devices');
   if (!res || !res.ok) return;
@@ -320,6 +398,11 @@ function renderUserInfo() {
     e.stopPropagation();
     el.classList.toggle('open');
   });
+
+  const auditTab = $('#tab-audit-btn');
+  if (auditTab) {
+    auditTab.style.display = u.role === 'admin' ? 'inline-block' : 'none';
+  }
 }
 
 function closeUserMenu() { const b = $('#user-badge'); if(b) b.classList.remove('open'); }
@@ -349,7 +432,7 @@ function renderStats() {
     <div class="stat-chip">Lokasi <b>${totalLoc}</b></div>
     <div class="stat-chip">Perangkat <b>${totalDev}</b></div>
     <div class="stat-chip"><span class="dot" style="background:var(--ok)"></span>Online <b>${online}</b></div>
-    <div class="stat-chip"><span class="dot" style="background:var(--alert)"></span>Offline <b>${offline}</b></div>
+    <div class="stat-chip" style="cursor:pointer" onclick="switchTab('offline')" title="Klik untuk melihat daftar perangkat offline"><span class="dot" style="background:var(--alert)"></span>Offline <b>${offline}</b></div>
     <div class="stat-chip"><span class="dot" style="background:var(--warn)"></span>Maint. <b>${maint}</b></div>
     <div class="ws-indicator"><span class="ws-dot" id="ws-dot"></span><span id="ws-label">Menghubungkan...</span></div>
   `;
@@ -440,7 +523,7 @@ function renderGridDashboard() {
   if (locs.length === 0) {
     panel.innerHTML = `
       <div class="empty-state">
-        <div class="big-icon">ðŸ”</div>
+        <div class="big-icon">🔍</div>
         <p>Tidak ada gedung atau lokasi yang cocok dengan "<b>${escapeHtml(searchTerm)}</b>"</p>
       </div>
     `;
@@ -462,10 +545,10 @@ function renderGridDashboard() {
     if (total > 0) {
       if (offline > 0) {
         statusClass = 'status-alert';
-        badgeHtml = `<span class="bcard-badge alert">⚠️ï¸ ${offline} Down</span>`;
+        badgeHtml = `<span class="bcard-badge alert">⚠️ ${offline} Down</span>`;
       } else if (maint > 0) {
         statusClass = 'status-warn';
-        badgeHtml = `<span class="bcard-badge warn">ðŸ› ï¸ Maintenance</span>`;
+        badgeHtml = `<span class="bcard-badge warn">🛠️ Maintenance</span>`;
       } else if (online === total) {
         statusClass = 'status-ok';
         badgeHtml = `<span class="bcard-badge ok">✓ Semua Online (${online})</span>`;
@@ -597,8 +680,9 @@ function buildTopoTable(){
       else if (hasKids) cls += ' tc-parent';
       else              cls += ' tc-leaf';
       if (isColl)       cls += ' tc-coll';
+      else if (hasKids) cls += ' tc-expanded';
       if (ci === 0)     cls += ' tc-root';
-      cls += ` s-${agg}`;
+      cls += ` s-${agg} tc-lvl-${ci % 8}`;
 
       const onclick = isBldg && locId
         ? `openDetail('${locId}')`
@@ -653,16 +737,106 @@ function setupPanZoom(){
 
 /* ── 12. TABS ──────────────────────────────────────────────────────── */
 function switchTab(name){
+  localStorage.setItem('activeTab', name);
   $$('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
   $('#view-grid').classList.toggle('active', name==='grid');
   $('#view-topo').classList.toggle('active', name==='topo');
   $('#view-detail').classList.toggle('active', name==='detail');
+  $('#view-offline').classList.toggle('active', name==='offline');
+  $('#view-report').classList.toggle('active', name==='report');
+  $('#view-audit').classList.toggle('active', name==='audit');
   if(name==='grid') renderGridDashboard();
+  if(name==='offline') renderOfflineDevices();
+  if(name==='report') renderReportView();
+  if(name==='audit') renderAuditView();
+}
+
+function refreshActiveView() {
+  const activeTab = $('.tab-btn.active');
+  if (!activeTab) return;
+  const tab = activeTab.dataset.tab;
+  if (tab === 'grid') renderGridDashboard();
+  if (tab === 'detail' && currentLocId) renderDetail();
+  if (tab === 'offline') renderOfflineDevices();
+  if (tab === 'report') renderReportView();
+  if (tab === 'audit') renderAuditView();
+}
+
+function renderOfflineDevices() {
+  const panel = $('#offline-panel');
+  if (!panel) return;
+
+  const offlineDevs = [];
+  Object.entries(state.devices).forEach(([locId, devs]) => {
+    const loc = state.locations.find(l => l.id === locId);
+    devs.forEach(d => {
+      if (d.status === 'Offline') {
+        offlineDevs.push({ ...d, locName: loc ? loc.nama : 'Unknown', locId });
+      }
+    });
+  });
+
+  if (offlineDevs.length === 0) {
+    panel.innerHTML = `
+      <div class="empty-state">
+        <div class="big-icon">✓</div>
+        <p style="color:var(--ok); font-weight:600">Semua Perangkat Online</p>
+        <p style="font-size:13px; color:var(--text-muted)">Tidak ada perangkat yang terdeteksi offline saat ini.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const isAdmin = currentUser && currentUser.role === 'admin';
+
+  const rows = offlineDevs.map(d => `
+    <tr>
+      <td><b>${escapeHtml(d.nama)}</b></td>
+      <td><span class="zone-badge" style="cursor:pointer" onclick="openDetail('${d.locId}')">${escapeHtml(d.locName)}</span></td>
+      <td>${escapeHtml(d.tipe)}</td>
+      <td>${escapeHtml(d.merk || '—')}</td>
+      <td class="ip-cell">${escapeHtml(d.ip || '—')} ${d.ip ? `<button class="icon-btn" title="Ping sekarang" onclick="pingNow('${d.id}','${d.ip}',this)">⟳</button>` : ''}</td>
+      <td>${statusBadge(d.status)} ${latencyChip(d.last_ping_ms)}</td>
+      <td><div class="row-actions">
+        ${isAdmin && d.mac ? `<button class="icon-btn" title="Wake on LAN (WoL)" onclick="wakeDevice('${d.id}')">⚡</button>` : ''}
+        ${isAdmin ? `<button class="icon-btn" title="Ubah" onclick="editDevice('${d.id}')">✍</button>` : ''}
+        <button class="icon-btn" title="Riwayat Ping" onclick="openHistoryModal('${d.id}')">📊</button>
+        ${isAdmin && d.ip ? `<button class="icon-btn" title="Reboot SSH" onclick="openRebootModal('${d.id}')">↺</button>` : ''}
+      </div></td>
+    </tr>
+  `).join('');
+
+  panel.innerHTML = `
+    <div class="detail-head" style="margin-bottom: 20px">
+      <div>
+        <h2 style="font-size:22px; margin:0 0 6px; color:#fff; font-weight:600">⚠️ Perangkat Offline (${offlineDevs.length})</h2>
+        <p style="font-size:12px; color:var(--text-muted); margin:0">Daftar semua perangkat di seluruh gedung yang saat ini tidak merespons ping.</p>
+      </div>
+    </div>
+    <div class="device-table-wrap">
+      <table class="device-table">
+        <thead>
+          <tr>
+            <th>Nama</th>
+            <th>Gedung / Lokasi</th>
+            <th>Tipe</th>
+            <th>Merk/Model</th>
+            <th>IP Address</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 $$('.tab-btn').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
 
 /* ── 13. DETAIL PANEL ──────────────────────────────────────────────── */
-function openDetail(locId){ currentLocId=locId; editingDeviceId=null; switchTab('detail'); renderDetail(); highlightActiveLoc(); }
+function openDetail(locId){ currentLocId=locId; closeDeviceForm(); switchTab('detail'); renderDetail(); highlightActiveLoc(); }
 
 function latencyChip(ms){
   if(ms==null) return '';
@@ -678,8 +852,15 @@ function statusBadge(status){
 function renderDetail(){
   const panel=$('#detail-panel');
   if(!panel) return;
+
+  // Jangan re-render jika modal form tambah/ubah perangkat sedang terbuka
+  const form = $('#device-modal');
+  if (form && form.classList.contains('open')) {
+    return;
+  }
+
   if(!currentLocId){
-    panel.innerHTML=`<div class="empty-state"><div class="big-icon">âŒ</div><div>Pilih gedung atau lokasi dari daftar / peta topologi<br>untuk melihat data perangkatnya.</div></div>`;
+    panel.innerHTML=`<div class="empty-state"><div class="big-icon">🖱️</div><div>Pilih gedung atau lokasi dari daftar / peta topologi<br>untuk melihat data perangkatnya.</div></div>`;
     return;
   }
   const loc  = state.locations.find(l=>l.id===currentLocId);
@@ -696,6 +877,7 @@ function renderDetail(){
       <td>${statusBadge(d.status)} ${latencyChip(d.last_ping_ms)}</td>
       <td>${escapeHtml(d.catatan||'—')}</td>
       <td><div class="row-actions">
+        ${isAdmin && d.mac ? `<button class="icon-btn" title="Wake on LAN (WoL)" onclick="wakeDevice('${d.id}')">⚡</button>` : ''}
         ${isAdmin?`<button class="icon-btn" title="Ubah" onclick="editDevice('${d.id}')">✍</button>`:''}
         <button class="icon-btn" title="Riwayat Ping" onclick="openHistoryModal('${d.id}')">📊</button>
         ${isAdmin&&d.ip?`<button class="icon-btn" title="Reboot SSH" onclick="openRebootModal('${d.id}')">↺</button>`:''}
@@ -722,26 +904,33 @@ function renderDetail(){
       <thead><tr><th>Nama</th><th>Tipe</th><th>Merk/Model</th><th>IP Address</th><th>Status</th><th>Catatan</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`}
-    <div class="device-form" id="device-form"></div>
   `;
 }
 
 /* ── 14. DEVICE FORM ───────────────────────────────────────────────── */
 function openDeviceForm(deviceId){
   editingDeviceId = deviceId||null;
-  const form = $('#device-form');
-  if(!form) return;
+  const modal = $('#device-modal');
+  const body = $('#device-modal-body');
+  const title = $('#device-modal-title');
+  if(!modal || !body || !title) return;
 
   const d = deviceId ? (state.devices[currentLocId]||[]).find(x=>x.id===deviceId) : null;
-  const osOptions = OS_TYPES.map(o=>`<option value="${o.v}"${d&&d.device_os===o.v?' selected':''}>${o.l}</option>`).join('');
+  const osOptions = state.deviceOs.map(o=>`<option value="${o.id}"${d&&d.device_os===o.id?' selected':''}>${o.name}</option>`).join('');
+  const isAdmin = currentUser && currentUser.role==='admin';
 
-  form.innerHTML=`
-    <p class="form-title" style="color:var(--accent);font-family:var(--mono);font-size:12px;margin:0 0 14px;text-transform:uppercase;letter-spacing:.5px">
-      ${deviceId?'✍ Ubah Perangkat':'+ Tambah Perangkat'}
-    </p>
+  title.textContent = deviceId ? '✍ Ubah Perangkat' : '+ Tambah Perangkat';
+
+  body.innerHTML=`
     <div class="form-grid">
       <div class="field"><label>Nama Perangkat</label><input id="f-nama" placeholder="cth. Switch Lantai 1" value="${escapeHtml(d?d.nama:'')}"></div>
-      <div class="field"><label>Tipe</label><select id="f-tipe">${DEVICE_TYPES.map(t=>`<option value="${t}"${d&&d.tipe===t?' selected':''}>${t}</option>`).join('')}</select></div>
+      <div class="field">
+        <label>Tipe</label>
+        <div style="display:flex;gap:6px">
+          <select id="f-tipe" style="flex:1">${state.deviceTypes.map(t=>`<option value="${t}"${d&&d.tipe===t?' selected':''}>${t}</option>`).join('')}</select>
+          ${isAdmin?`<button class="icon-btn" onclick="openOptionsModal('types')" title="Kelola Tipe" style="flex-shrink:0;height:40px;width:40px;display:flex;align-items:center;justify-content:center">⚙️</button>`:''}
+        </div>
+      </div>
       <div class="field"><label>Merk / Model</label><input id="f-merk" placeholder="cth. Cisco SG350" value="${escapeHtml(d?d.merk||'':'')}"></div>
       <div class="field"><label>IP Address</label><input id="f-ip" placeholder="cth. 10.10.5.2" value="${escapeHtml(d?d.ip||'':'')}"></div>
       <div class="field"><label>MAC Address</label><input id="f-mac" placeholder="cth. AA:BB:CC:DD:EE:FF" value="${escapeHtml(d?d.mac||'':'')}"></div>
@@ -755,9 +944,21 @@ function openDeviceForm(deviceId){
       <div class="ssh-fields" id="ssh-fields">
         <div class="form-grid">
           <div class="field"><label>SSH Username</label><input id="f-ssh-user" placeholder="admin" value="${escapeHtml(d?d.ssh_user||'':'')}"></div>
-          <div class="field"><label>SSH Password</label><input type="password" id="f-ssh-pass" placeholder="••••••••"></div>
+          <div class="field">
+            <label>SSH Password</label>
+            <div style="display:flex;gap:6px">
+              <input type="text" id="f-ssh-pass" placeholder="••••••••" value="${escapeHtml(d?d.ssh_pass||'':'')}" style="flex:1">
+              <button type="button" class="icon-btn" onclick="togglePasswordVisibility('f-ssh-pass', this)" title="Sembunyikan Password" style="flex-shrink:0;height:40px;width:40px;display:flex;align-items:center;justify-content:center">🙈</button>
+            </div>
+          </div>
           <div class="field"><label>SSH Port</label><input id="f-ssh-port" type="number" placeholder="22" value="${d?d.ssh_port||22:22}"></div>
-          <div class="field"><label>OS Device</label><select id="f-device-os">${osOptions}</select></div>
+          <div class="field">
+            <label>OS Device</label>
+            <div style="display:flex;gap:6px">
+              <select id="f-device-os" style="flex:1">${osOptions}</select>
+              ${isAdmin?`<button class="icon-btn" onclick="openOptionsModal('os')" title="Kelola OS" style="flex-shrink:0;height:40px;width:40px;display:flex;align-items:center;justify-content:center">⚙️</button>`:''}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -766,8 +967,7 @@ function openDeviceForm(deviceId){
       <button class="btn-primary" onclick="submitDeviceForm()">Simpan</button>
     </div>
   `;
-  form.classList.add('open');
-  form.scrollIntoView({behavior:'smooth', block:'nearest'});
+  modal.classList.add('open');
   $('#f-nama').focus();
 }
 
@@ -780,8 +980,189 @@ function toggleSshSection(){
 
 function closeDeviceForm(){
   editingDeviceId=null;
-  const f=$('#device-form');
-  if(f){ f.classList.remove('open'); f.innerHTML=''; }
+  const modal=$('#device-modal');
+  const body=$('#device-modal-body');
+  if(modal){ modal.classList.remove('open'); }
+  if(body){ body.innerHTML=''; }
+}
+
+/* ── 14B. MANAGE OPTIONS (TYPES & OS) ──────────────────────────────── */
+let activeOptionsMode = null; // 'types' or 'os'
+let editingOptionKey = null; // for tracking what we are renaming
+
+async function openOptionsModal(mode) {
+  activeOptionsMode = mode;
+  editingOptionKey = null;
+  const modal = $('#options-modal');
+  const title = $('#options-modal-title');
+  if (!modal || !title) return;
+
+  title.textContent = mode === 'types' ? '⚙️ Kelola Kategori (Tipe)' : '⚙️ Kelola OS Device';
+  
+  await renderOptionsList();
+  modal.classList.add('open');
+}
+
+function closeOptionsModal() {
+  const modal = $('#options-modal');
+  if (modal) modal.classList.remove('open');
+  
+  // Refresh the dropdown lists in the device form if it's still open
+  if ($('#device-modal').classList.contains('open')) {
+    openDeviceForm(editingDeviceId);
+  }
+}
+
+async function renderOptionsList() {
+  const body = $('#options-modal-body');
+  if (!body) return;
+
+  await loadOptions(); // reload current lists from API
+
+  let listHtml = '';
+  if (activeOptionsMode === 'types') {
+    listHtml = state.deviceTypes.map(t => `
+      <div class="option-item" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        ${editingOptionKey === t ? `
+          <input id="f-edit-opt-val" value="${escapeHtml(t)}" style="flex:1;margin-right:8px;padding:6px 10px;height:32px;font-size:13px;background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:4px">
+          <div style="display:flex;gap:4px">
+            <button class="icon-btn" onclick="saveEditOption('${escapeHtml(t)}')" title="Simpan">✓</button>
+            <button class="icon-btn danger" onclick="cancelEditOption()" title="Batal">✕</button>
+          </div>
+        ` : `
+          <span style="font-family:var(--mono);font-size:13px">${escapeHtml(t)}</span>
+          <div style="display:flex;gap:4px">
+            <button class="icon-btn" onclick="startEditOption('${escapeHtml(t)}')" title="Edit">✍</button>
+            <button class="icon-btn danger" onclick="deleteOption('${escapeHtml(t)}')" title="Hapus">✕</button>
+          </div>
+        `}
+      </div>
+    `).join('');
+
+    body.innerHTML = `
+      <div class="options-list" style="margin-bottom:20px">${listHtml || '<p style="color:var(--text-muted);font-size:12px">Belum ada kategori.</p>'}</div>
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+        <label style="font-size:11px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase">Tambah Kategori Baru</label>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <input id="f-new-opt-name" placeholder="cth. IoT Device" style="flex:1;padding:8px 12px;font-size:13px;height:36px;background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:6px">
+          <button class="btn-primary" onclick="addOption()" style="padding:0 16px;height:36px;font-size:12px">Tambah</button>
+        </div>
+      </div>
+    `;
+  } else {
+    // OS MODE
+    listHtml = state.deviceOs.map(o => `
+      <div class="option-item" style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+        ${editingOptionKey === o.id ? `
+          <div style="flex:1;display:flex;gap:8px;margin-right:8px;align-items:center">
+            <span style="font-family:var(--mono);font-size:11px;color:var(--text-muted)">${o.id}</span>
+            <input id="f-edit-opt-val" value="${escapeHtml(o.name)}" style="flex:1;padding:6px 10px;height:32px;font-size:13px;background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:4px">
+          </div>
+          <div style="display:flex;gap:4px">
+            <button class="icon-btn" onclick="saveEditOption('${o.id}')" title="Simpan">✓</button>
+            <button class="icon-btn danger" onclick="cancelEditOption()" title="Batal">✕</button>
+          </div>
+        ` : `
+          <div style="display:flex;flex-direction:column">
+            <span style="font-size:13px;font-weight:500">${escapeHtml(o.name)}</span>
+            <span style="font-family:var(--mono);font-size:10px;color:var(--text-muted)">ID: ${o.id}</span>
+          </div>
+          <div style="display:flex;gap:4px">
+            <button class="icon-btn" onclick="startEditOption('${o.id}')" title="Edit">✍</button>
+            <button class="icon-btn danger" onclick="deleteOption('${o.id}')" title="Hapus">✕</button>
+          </div>
+        `}
+      </div>
+    `).join('');
+
+    body.innerHTML = `
+      <div class="options-list" style="margin-bottom:20px">${listHtml || '<p style="color:var(--text-muted);font-size:12px">Belum ada OS.</p>'}</div>
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+        <label style="font-size:11px;font-family:var(--mono);color:var(--text-muted);text-transform:uppercase">Tambah OS Baru</label>
+        <div style="display:grid;grid-template-columns:1fr 2fr auto;gap:8px;margin-top:8px;align-items:end">
+          <div class="field" style="margin:0"><label style="font-size:9.5px;margin-bottom:4px">ID (cth. debian)</label><input id="f-new-os-id" placeholder="id" style="padding:8px 12px;font-size:13px;height:36px;background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:6px"></div>
+          <div class="field" style="margin:0"><label style="font-size:9.5px;margin-bottom:4px">Nama OS (cth. Debian OS)</label><input id="f-new-os-name" placeholder="Nama OS" style="padding:8px 12px;font-size:13px;height:36px;background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:6px"></div>
+          <button class="btn-primary" onclick="addOption()" style="padding:0 16px;height:36px;font-size:12px">Tambah</button>
+        </div>
+      </div>
+    `;
+  }
+}
+
+function startEditOption(key) {
+  editingOptionKey = key;
+  renderOptionsList();
+}
+
+function cancelEditOption() {
+  editingOptionKey = null;
+  renderOptionsList();
+}
+
+async function saveEditOption(key) {
+  const newVal = $('#f-edit-opt-val').value.trim();
+  if (!newVal) return showToast('Nilai tidak boleh kosong', 'error');
+
+  try {
+    const url = activeOptionsMode === 'types' ? `/api/devices/types/${encodeURIComponent(key)}` : `/api/devices/os/${encodeURIComponent(key)}`;
+    const res = await api.put(url, { name: newVal });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Gagal mengubah opsi');
+    }
+    showToast('Opsi berhasil diubah', 'ok');
+    editingOptionKey = null;
+    await renderOptionsList();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function addOption() {
+  try {
+    if (activeOptionsMode === 'types') {
+      const name = $('#f-new-opt-name').value.trim();
+      if (!name) return showToast('Nama kategori wajib diisi', 'error');
+      
+      const res = await api.post('/api/devices/types', { name });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Gagal menambahkan kategori');
+      }
+      showToast('Kategori berhasil ditambahkan', 'ok');
+    } else {
+      const id = $('#f-new-os-id').value.trim().toLowerCase();
+      const name = $('#f-new-os-name').value.trim();
+      if (!id || !name) return showToast('ID dan Nama OS wajib diisi', 'error');
+
+      const res = await api.post('/api/devices/os', { id, name });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Gagal menambahkan OS');
+      }
+      showToast('OS berhasil ditambahkan', 'ok');
+    }
+    await renderOptionsList();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function deleteOption(key) {
+  if (!confirm(`Hapus opsi "${key}"? (Perangkat yang menggunakan opsi ini akan disesuaikan)`)) return;
+
+  try {
+    const url = activeOptionsMode === 'types' ? `/api/devices/types/${encodeURIComponent(key)}` : `/api/devices/os/${encodeURIComponent(key)}`;
+    const res = await api.delete(url);
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Gagal menghapus opsi');
+    }
+    showToast('Opsi berhasil dihapus', 'ok');
+    await renderOptionsList();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
 }
 
 async function submitDeviceForm(){
@@ -811,7 +1192,8 @@ async function submitDeviceForm(){
     }
     editingDeviceId=null;
     closeDeviceForm();
-    renderDetail(); renderSidebar(); renderStats(); renderTopology();
+    refreshActiveView();
+    renderSidebar(); renderStats(); renderTopology();
     showToast('Data perangkat tersimpan','ok');
   } catch(err){
     showToast('Error: '+err.message,'error');
@@ -825,7 +1207,7 @@ async function deleteDevice(id){
   try {
     await apiDeleteDevice(id);
     state.devices[currentLocId]=(state.devices[currentLocId]||[]).filter(d=>d.id!==id);
-    renderDetail(); renderSidebar(); renderStats(); renderTopology();
+    refreshActiveView(); renderSidebar(); renderStats(); renderTopology();
     showToast('Perangkat dihapus','info');
   } catch(err){
     showToast('Error: '+err.message,'error');
@@ -853,7 +1235,7 @@ async function pingNow(deviceId, ip, btn){
         if(dev){ dev.status='Offline'; dev.last_ping_ms=null; }
       });
     }
-    renderStats(); renderSidebar(); renderTopology(); if(currentLocId) renderDetail();
+    renderStats(); renderSidebar(); renderTopology(); refreshActiveView();
   } catch(e){ showToast('Ping error: '+e.message,'error'); }
   btn.classList.remove('spinning');
   btn.disabled=false;
@@ -1079,8 +1461,186 @@ async function submitChangePassword(){
   }
 }
 
-/* ── 19. INIT ──────────────────────────────────────────────────────── */
+/* ── 19. WAKE ON LAN (WoL) ─────────────────────────────────────────── */
+async function wakeDevice(deviceId) {
+  if (!confirm('Kirim Magic Packet (Wake-on-LAN) ke perangkat ini?')) return;
+  try {
+    showToast('Mengirim Magic Packet...');
+    const res = await api.post('/api/control/wake', { device_id: deviceId });
+    if (res.success) {
+      showToast(res.message);
+    } else {
+      showToast(res.error || 'Gagal mengirim WoL');
+    }
+  } catch (err) {
+    showToast('Gagal: ' + err.message);
+  }
+}
+
+/* ── 20. SLA REPORT VIEW ───────────────────────────────────────────── */
+let currentSlaReport = [];
+
+async function renderReportView() {
+  const panel = $('#report-panel');
+  if (!panel) return;
+  panel.innerHTML = `<p style="color:var(--text-muted)">Memuat laporan SLA...</p>`;
+
+  try {
+    const res = await api.get('/api/ping/sla-report?days=7');
+    const data = await res.json();
+    currentSlaReport = data.report || [];
+    
+    let totalDevices = currentSlaReport.length;
+    let avgFactoryUptime = totalDevices ? currentSlaReport.reduce((a,b)=>a+b.uptime_percent,0) / totalDevices : 0;
+    
+    const rows = currentSlaReport.map(r => {
+      let color = r.uptime_percent >= 99 ? 'var(--ok)' : (r.uptime_percent >= 95 ? 'var(--warn)' : 'var(--alert)');
+      const loc = state.locations.find(l => l.id === r.location);
+      const locName = loc ? loc.nama : r.location;
+      return `
+        <tr>
+          <td>${escapeHtml(r.device_name)}</td>
+          <td>${escapeHtml(locName)}</td>
+          <td>${escapeHtml(r.ip_address)}</td>
+          <td><b style="color:${color}">${r.uptime_percent}%</b></td>
+          <td>${r.downtime_minutes} menit</td>
+          <td>${r.avg_latency || 0} ms</td>
+        </tr>
+      `;
+    }).join('');
+
+    panel.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
+        <div>
+          <h2 style="font-size:22px; margin:0 0 6px; color:#fff; font-weight:600">📈 Laporan Uptime SLA (7 Hari Terakhir)</h2>
+          <p style="font-size:13px; color:var(--text-muted); margin:0">Rata-rata ketersediaan keseluruhan pabrik: <b style="color:var(--ok); font-size:16px">${avgFactoryUptime.toFixed(2)}%</b></p>
+        </div>
+        <div style="display:flex; gap:10px;">
+          <button class="add-btn" style="background:var(--panel-2); border:1px solid var(--border); color:#fff; font-weight:500" onclick="exportSlaExcel()">📥 Download Excel</button>
+          <button class="add-btn" style="color:#000; font-weight:600" onclick="window.print()">🖨️ Cetak / PDF</button>
+        </div>
+      </div>
+      <div class="device-table-wrap">
+        <table class="device-table">
+          <thead>
+            <tr>
+              <th>Perangkat</th>
+              <th>Lokasi</th>
+              <th>IP Address</th>
+              <th>Uptime (%)</th>
+              <th>Est. Downtime</th>
+              <th>Rata-rata Latency</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Data tidak tersedia</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (err) {
+    panel.innerHTML = `<p style="color:var(--alert)">Gagal memuat laporan SLA: ${err.message}</p>`;
+  }
+}
+
+function exportSlaExcel() {
+  if (!currentSlaReport.length) return alert('Tidak ada data SLA untuk di-export.');
+  
+  // Format data untuk dicerna oleh SheetJS
+  const excelData = currentSlaReport.map(r => {
+    const loc = state.locations.find(l => l.id === r.location);
+    const locName = loc ? loc.nama : r.location;
+    return {
+      'Nama Perangkat': r.device_name,
+      'Lokasi': locName,
+      'IP Address': r.ip_address,
+      'Uptime (%)': r.uptime_percent + '%',
+      'Estimasi Downtime (menit)': r.downtime_minutes,
+      'Rata-rata Latency (ms)': r.avg_latency || 0
+    };
+  });
+
+  try {
+    // Membuat sheet baru dari data JSON
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    
+    // Set auto-width kolom sederhana biar Excel nya rapi
+    const colsWidth = [
+      { wch: 30 }, // Nama Perangkat
+      { wch: 25 }, // Lokasi
+      { wch: 18 }, // IP Address
+      { wch: 12 }, // Uptime
+      { wch: 25 }, // Est Downtime
+      { wch: 22 }  // Latency
+    ];
+    worksheet['!cols'] = colsWidth;
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan SLA Uptime");
+
+    // Unduh file excel native .xlsx
+    const filename = `Laporan_Uptime_SLA_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+    showToast('Laporan Excel berhasil diunduh', 'ok');
+  } catch (err) {
+    alert('Gagal mengekspor ke Excel: ' + err.message);
+  }
+}
+
+/* ── 21. AUDIT TRAIL VIEW ──────────────────────────────────────────── */
+async function renderAuditView() {
+  const panel = $('#audit-panel');
+  if (!panel) return;
+  panel.innerHTML = `<p style="color:var(--text-muted)">Memuat audit trail...</p>`;
+
+  try {
+    const res = await api.get('/api/audit?limit=100');
+    const data = await res.json();
+    const logs = data.logs || [];
+    
+    const rows = logs.map(l => `
+      <tr>
+        <td style="font-family:var(--mono); font-size:12px; color:var(--text-muted);">${new Date(l.created_at).toLocaleString('id-ID')}</td>
+        <td><b>${escapeHtml(l.username)}</b></td>
+        <td><span class="zone-badge" style="background:var(--panel-2); color:var(--accent)">${escapeHtml(l.action)}</span></td>
+        <td>${escapeHtml(l.target_device || '—')}</td>
+        <td style="font-size:12px">${escapeHtml(l.details || '—')}</td>
+      </tr>
+    `).join('');
+
+    panel.innerHTML = `
+      <div style="margin-bottom:20px;">
+        <h2 style="font-size:22px; margin:0 0 6px; color:#fff; font-weight:600">📜 Log Audit Sistem</h2>
+        <p style="font-size:13px; color:var(--text-muted); margin:0">Menampilkan 100 aktivitas sistem terbaru.</p>
+      </div>
+      <div class="device-table-wrap">
+        <table class="device-table">
+          <thead>
+            <tr>
+              <th>Waktu</th>
+              <th>User</th>
+              <th>Aksi</th>
+              <th>Target</th>
+              <th>Detail</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows || '<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">Belum ada log aktivitas.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (err) {
+    panel.innerHTML = `<p style="color:var(--alert)">Gagal memuat log audit: ${err.message}</p>`;
+  }
+}
+
+/* ── 22. INIT ──────────────────────────────────────────────────────── */
 async function init(){
+  // Paksa kosongkan search input — Chrome/Edge sering abaikan autocomplete="off"
+  const si = $('#search-input');
+  if (si) { si.value = ''; }
+
   // Tampilkan loading state
   const bar = $('#stats-bar');
   if(bar) bar.innerHTML='<div class="stat-chip" style="opacity:.5">Memuat data...</div>';
@@ -1097,16 +1657,19 @@ async function init(){
       }
     }
 
-    // Muat data device dari API
+    // Muat opsi & data device dari API
+    await loadOptions();
     await loadDevices();
 
     // Render semua komponen UI
     setupPanZoom();
     renderStats();
     renderSidebar();
-    renderGridDashboard();
-    renderTopology();
-    renderDetail();
+    renderTopology(); // Pre-render topology canvas
+    
+    // Pulihkan tab aktif dari localStorage, default ke 'grid'
+    const savedTab = localStorage.getItem('activeTab') || 'grid';
+    switchTab(savedTab);
 
     // Mobile Sidebar Setup
     const btnMenu = $('#mobile-menu-btn');
@@ -1256,6 +1819,20 @@ async function bulkSaveDevices() {
     
   } catch(e) {
     showToast(e.message, 'error');
+  }
+}
+
+function togglePasswordVisibility(id, btn) {
+  const input = document.getElementById(id);
+  if (!input) return;
+  if (input.type === 'password') {
+    input.type = 'text';
+    btn.innerHTML = '🙈';
+    btn.title = 'Sembunyikan Password';
+  } else {
+    input.type = 'password';
+    btn.innerHTML = '👁️';
+    btn.title = 'Tampilkan Password';
   }
 }
 

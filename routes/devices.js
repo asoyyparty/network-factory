@@ -1,6 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const db      = require('../db/database');
+const { logAudit } = require('../services/auditLog');
 
 function uid() {
   return 'd' + Math.random().toString(36).slice(2, 10);
@@ -11,7 +12,7 @@ router.get('/', async (req, res) => {
   try {
     const [rows] = await db.execute(`
       SELECT id, loc_id, nama, tipe, merk, ip, mac, status,
-             catatan, ssh_user, ssh_port, device_os,
+             catatan, ssh_user, ssh_pass, ssh_port, device_os,
              last_seen, last_ping_ms, created_at, updated_at
       FROM devices ORDER BY loc_id, nama
     `);
@@ -50,7 +51,7 @@ router.get('/loc/:locId', async (req, res) => {
   try {
     const [rows] = await db.execute(`
       SELECT id, loc_id, nama, tipe, merk, ip, mac, status,
-             catatan, ssh_user, ssh_port, device_os,
+             catatan, ssh_user, ssh_pass, ssh_port, device_os,
              last_seen, last_ping_ms
       FROM devices WHERE loc_id = ? ORDER BY nama
     `, [req.params.locId]);
@@ -93,11 +94,16 @@ router.post('/', async (req, res) => {
 
     const [rows] = await db.execute(`
       SELECT id, loc_id, nama, tipe, merk, ip, mac, status,
-             catatan, ssh_user, ssh_port, device_os, last_seen, last_ping_ms
+             catatan, ssh_user, ssh_pass, ssh_port, device_os, last_seen, last_ping_ms
       FROM devices WHERE id = ?
     `, [id]);
     
-    res.status(201).json({ device: rows[0] });
+    const device = rows[0];
+    
+    // Audit Log
+    logAudit(req.user.username, 'Add Device', nama, `IP: ${ip}, Loc: ${loc_id}`);
+
+    res.status(201).json({ device });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Terjadi kesalahan pada server' });
@@ -139,11 +145,16 @@ router.put('/:id', async (req, res) => {
 
     const [updatedRows] = await db.execute(`
       SELECT id, loc_id, nama, tipe, merk, ip, mac, status,
-             catatan, ssh_user, ssh_port, device_os, last_seen, last_ping_ms
+             catatan, ssh_user, ssh_pass, ssh_port, device_os, last_seen, last_ping_ms
       FROM devices WHERE id = ?
     `, [req.params.id]);
     
-    res.json({ device: updatedRows[0] });
+    const device = updatedRows[0];
+    
+    // Audit Log
+    logAudit(req.user.username, 'Edit Device', device.nama, `IP: ${device.ip}, Updated by admin`);
+
+    res.json({ device });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Terjadi kesalahan pada server' });
@@ -153,10 +164,14 @@ router.put('/:id', async (req, res) => {
 /* ── DELETE /api/devices/:id ────────────────────────────────── */
 router.delete('/:id', async (req, res) => {
   try {
-    const [existingRows] = await db.execute('SELECT id FROM devices WHERE id = ?', [req.params.id]);
+    const [existingRows] = await db.execute('SELECT id, nama FROM devices WHERE id = ?', [req.params.id]);
     if (existingRows.length === 0) return res.status(404).json({ error: 'Device tidak ditemukan' });
 
     await db.execute('DELETE FROM devices WHERE id = ?', [req.params.id]);
+    
+    // Audit Log
+    logAudit(req.user.username, 'Delete Device', existingRows[0].nama, `Deleted by admin`);
+    
     res.json({ message: 'Device berhasil dihapus' });
   } catch (err) {
     console.error(err);
@@ -222,10 +237,121 @@ router.post('/bulk', async (req, res) => {
       inserted++;
     }
 
+    if (inserted > 0) {
+      logAudit(req.user.username, 'Bulk Add Devices', 'Multiple', `Added ${inserted} auto-discovered devices`);
+    }
+
     res.status(201).json({ message: `Berhasil menambahkan ${inserted} perangkat` });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Terjadi kesalahan pada server saat bulk insert' });
+  }
+});
+
+/* ── Option Management endpoints ── */
+
+/* ── GET /api/devices/types ── */
+router.get('/types', async (req, res) => {
+  try {
+    const [rows] = await db.execute('SELECT name FROM device_types ORDER BY id');
+    res.json({ types: rows.map(r => r.name) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gagal mengambil daftar kategori' });
+  }
+});
+
+/* ── POST /api/devices/types ── */
+router.post('/types', async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Nama tipe wajib diisi' });
+    await db.execute('INSERT INTO device_types (name) VALUES (?)', [name.trim()]);
+    res.status(201).json({ message: 'Tipe berhasil ditambahkan' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gagal menambahkan tipe (nama mungkin sudah terpakai)' });
+  }
+});
+
+/* ── PUT /api/devices/types/:oldName ── */
+router.put('/types/:oldName', async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Nama baru wajib diisi' });
+    
+    // Update type name
+    await db.execute('UPDATE device_types SET name = ? WHERE name = ?', [name.trim(), req.params.oldName]);
+    // Cascade update devices using this type
+    await db.execute('UPDATE devices SET tipe = ? WHERE tipe = ?', [name.trim(), req.params.oldName]);
+    
+    res.json({ message: 'Tipe berhasil diubah' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gagal mengubah tipe' });
+  }
+});
+
+/* ── DELETE /api/devices/types/:name ── */
+router.delete('/types/:name', async (req, res) => {
+  try {
+    await db.execute('DELETE FROM device_types WHERE name = ?', [req.params.name]);
+    res.json({ message: 'Tipe berhasil dihapus' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gagal menghapus tipe' });
+  }
+});
+
+/* ── GET /api/devices/os ── */
+router.get('/os', async (req, res) => {
+  try {
+    const [rows] = await db.execute('SELECT id, name FROM device_os ORDER BY name');
+    res.json({ os: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gagal mengambil daftar OS' });
+  }
+});
+
+/* ── POST /api/devices/os ── */
+router.post('/os', async (req, res) => {
+  try {
+    const { id, name } = req.body;
+    if (!id || !id.trim() || !name || !name.trim()) {
+      return res.status(400).json({ error: 'ID dan nama OS wajib diisi' });
+    }
+    await db.execute('INSERT INTO device_os (id, name) VALUES (?, ?)', [id.trim().toLowerCase(), name.trim()]);
+    res.status(201).json({ message: 'OS berhasil ditambahkan' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gagal menambahkan OS (ID/nama mungkin sudah terpakai)' });
+  }
+});
+
+/* ── PUT /api/devices/os/:id ── */
+router.put('/os/:id', async (req, res) => {
+  try {
+    const { name } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({ error: 'Nama baru wajib diisi' });
+    
+    await db.execute('UPDATE device_os SET name = ? WHERE id = ?', [name.trim(), req.params.id]);
+    
+    res.json({ message: 'OS berhasil diubah' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gagal mengubah OS' });
+  }
+});
+
+/* ── DELETE /api/devices/os/:id ── */
+router.delete('/os/:id', async (req, res) => {
+  try {
+    await db.execute('DELETE FROM device_os WHERE id = ?', [req.params.id]);
+    res.json({ message: 'OS berhasil dihapus' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gagal menghapus OS' });
   }
 });
 

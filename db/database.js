@@ -81,6 +81,58 @@ async function initializeDB() {
     )
   `);
 
+  // Create audit_logs table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      username VARCHAR(100) DEFAULT 'system',
+      action VARCHAR(100) NOT NULL,
+      target_device VARCHAR(255) DEFAULT '',
+      details TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_audit_time (created_at DESC)
+    )
+  `);
+
+  // Create device_types table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS device_types (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(100) UNIQUE NOT NULL
+    )
+  `);
+
+  // Create device_os table
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS device_os (
+      id VARCHAR(50) PRIMARY KEY,
+      name VARCHAR(100) UNIQUE NOT NULL
+    )
+  `);
+
+  // Seed default device types if empty
+  const [typesCount] = await pool.query('SELECT COUNT(*) as count FROM device_types');
+  if (typesCount[0].count === 0) {
+    const defaultTypes = ['Router', 'Switch', 'Access Point', 'Server', 'CCTV', 'Modem/ONT', 'Lainnya'];
+    for (const t of defaultTypes) {
+      await pool.query('INSERT INTO device_types (name) VALUES (?)', [t]);
+    }
+  }
+
+  // Seed default device OS if empty
+  const [osCount] = await pool.query('SELECT COUNT(*) as count FROM device_os');
+  if (osCount[0].count === 0) {
+    const defaultOS = [
+      ['generic', 'Linux / Generic'],
+      ['cisco', 'Cisco IOS'],
+      ['mikrotik', 'MikroTik RouterOS'],
+      ['windows', 'Windows OS']
+    ];
+    for (const [id, name] of defaultOS) {
+      await pool.query('INSERT INTO device_os (id, name) VALUES (?, ?)', [id, name]);
+    }
+  }
+
   // 4. Seed admin user
   const [users] = await pool.query('SELECT id FROM users WHERE username = ?', ['admin']);
   if (users.length === 0) {
@@ -92,6 +144,35 @@ async function initializeDB() {
     `, ['admin', hash]);
     console.log(`[DB] User admin dibuat. Password default: ${adminPass}`);
     console.log('[DB] PENTING: Harap ganti password saat pertama login!');
+  }
+
+  // 5. Seed sample audit_logs jika masih kosong
+  const [auditCount] = await pool.query('SELECT COUNT(*) as count FROM audit_logs');
+  if (auditCount[0].count === 0) {
+    const sampleAudits = [
+      ['admin',  'User Login',        'System',             'Login berhasil dari browser'],
+      ['admin',  'Add Device',         'MikroTik Core',      'IP: 192.168.1.1, Loc: server-room'],
+      ['admin',  'Add Device',         'Switch Gedung A',    'IP: 192.168.1.10, Loc: gedung-a'],
+      ['system', 'Status Changed',     'CCTV Pintu Utama',   'Status berubah dari Online menjadi Offline'],
+      ['admin',  'Reboot Device',      'MikroTik Core',      'IP: 192.168.1.1'],
+      ['system', 'Status Changed',     'CCTV Pintu Utama',   'Status berubah dari Offline menjadi Online'],
+      ['admin',  'Test SSH',           'Switch Gedung A',    'IP: 192.168.1.10 - Success'],
+      ['admin',  'Wake on LAN',        'PC Produksi Lt.2',   'MAC: A4:C3:F0:11:22:33'],
+      ['admin',  'Update SSH Creds',   'Router ISP',         'Kredensial SSH diperbarui'],
+      ['admin',  'Change Password',    'System',             'Password admin berhasil diubah'],
+      ['viewer', 'User Login',         'System',             'Login berhasil dari browser'],
+      ['admin',  'Delete Device',      'AP Lama Gudang',     'Deleted by admin'],
+      ['system', 'Status Changed',     'Server NVR CCTV',    'Status berubah dari Online menjadi Offline'],
+      ['admin',  'Bulk Add Devices',   'Multiple',           'Added 5 auto-discovered devices'],
+      ['admin',  'Create User',        'viewer1',            'Role: viewer'],
+    ];
+    for (const [username, action, target_device, details] of sampleAudits) {
+      await pool.query(
+        'INSERT INTO audit_logs (username, action, target_device, details, created_at) VALUES (?, ?, ?, ?, DATE_SUB(NOW(), INTERVAL FLOOR(RAND()*7200) SECOND))',
+        [username, action, target_device, details]
+      );
+    }
+    console.log('[DB] Sample data audit_logs berhasil di-seed.');
   }
 
   console.log(`[DB] MySQL Terkoneksi ke database: ${dbName}`);

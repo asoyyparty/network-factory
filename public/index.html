@@ -4,11 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Peta Jaringan Pabrik</title>
+<link rel="icon" type="image/png" href="/assets/cba-logo.png">
 <meta name="description" content="Sistem monitoring dan kontrol perangkat jaringan pabrik secara realtime.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- Chart.js untuk ping history -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<!-- SheetJS untuk export Excel (.xlsx) -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
   :root{
     /* Premium Dark Theme Palette (Tailwind-inspired) */
@@ -57,13 +60,12 @@
     display:none;background:none;border:none;color:var(--text);
     font-size:24px;padding:0;line-height:1;cursor:pointer;
   }
-  .brand-mark{
-    width:38px;height:38px;border:2px solid var(--accent);border-radius:6px;
-    display:flex;align-items:center;justify-content:center;position:relative;flex-shrink:0;
-    box-shadow: 0 0 12px var(--accent-glow);
+  .brand-logo-img{
+    width:38px;height:38px;
+    object-fit:contain;
+    flex-shrink:0;
+    filter:drop-shadow(0 0 8px var(--accent-glow));
   }
-  .brand-mark::before{content:'';position:absolute;width:8px;height:8px;background:var(--accent);border-radius:50%;}
-  .brand-mark::after{content:'';position:absolute;width:20px;height:20px;border:1px solid rgba(56, 189, 248, 0.5);border-radius:50%;}
   .brand-text h1{font-family:var(--mono);font-size:16px;font-weight:700;margin:0;letter-spacing:1px;color:#fff;}
   .brand-text p{margin:4px 0 0;font-size:12px;color:var(--text-muted);font-weight:500;}
   
@@ -157,27 +159,79 @@
   .topo-htable{border-collapse:collapse;font-family:var(--mono);font-size:12px;width:max-content;min-width:100%;}
   .topo-row{}
   .tc{
-    border:1px solid rgba(55,65,81,0.7);
+    border:1px solid rgba(55,65,81,0.6);
     vertical-align:middle;white-space:nowrap;
-    padding:0;min-width:130px;max-width:220px;
-    transition:background 0.18s;
+    padding:0;min-width:140px;max-width:240px;
+    transition:all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    position:relative;
+  }
+  .tc:hover{
+    z-index:2;
+    box-shadow:0 4px 12px rgba(0,0,0,0.4);
   }
   .tc-in{
-    display:flex;align-items:center;gap:7px;
-    padding:8px 12px;
+    display:flex;align-items:center;gap:8px;
+    padding:9px 13px;
   }
-  .tc-root{min-width:100px;}
-  .tc-parent{background:rgba(30,41,59,0.55);cursor:pointer;}
-  .tc-parent:hover{background:rgba(56,189,248,0.1);border-color:rgba(56,189,248,0.4);}
-  .tc-leaf{background:rgba(15,23,42,0.4);}
-  .tc-bldg{background:rgba(15,40,75,0.55);cursor:pointer;}
-  .tc-bldg:hover{background:rgba(56,189,248,0.14);border-color:rgba(56,189,248,0.5);}
-  .tc-chev{color:var(--accent);font-size:10px;flex-shrink:0;transition:transform 0.2s;width:12px;text-align:center;}
-  .tc-coll .tc-chev{}
-  .tc-dot{width:6px;height:6px;border-radius:50%;background:var(--idle);flex-shrink:0;}
-  .tc-lbl{color:#E2E8F0;flex:1;overflow:hidden;text-overflow:ellipsis;font-size:11.5px;}
-  .tc-bldg .tc-lbl{color:#7DD3FC;}
-  .tc-root .tc-lbl{color:#38BDF8;font-weight:700;}
+  .tc-root{min-width:110px;}
+
+  /* --- HIERARCHY LEVEL COLORS FOR EXPANDABLE NODES (.tc-parent) --- */
+  .tc-parent.tc-lvl-0{background:rgba(6,182,212,0.15); border-color:rgba(6,182,212,0.4);}
+  .tc-parent.tc-lvl-0 .tc-lbl{color:#67E8F9; font-weight:700;}
+  .tc-parent.tc-lvl-1{background:rgba(20,184,166,0.15); border-color:rgba(20,184,166,0.4);}
+  .tc-parent.tc-lvl-1 .tc-lbl{color:#5EEAD4; font-weight:600;}
+  .tc-parent.tc-lvl-2{background:rgba(16,185,129,0.15); border-color:rgba(16,185,129,0.4);}
+  .tc-parent.tc-lvl-2 .tc-lbl{color:#6EE7B7; font-weight:600;}
+  .tc-parent.tc-lvl-3{background:rgba(59,130,246,0.15); border-color:rgba(59,130,246,0.4);}
+  .tc-parent.tc-lvl-3 .tc-lbl{color:#93C5FD; font-weight:600;}
+  .tc-parent.tc-lvl-4{background:rgba(99,102,241,0.15); border-color:rgba(99,102,241,0.4);}
+  .tc-parent.tc-lvl-4 .tc-lbl{color:#A5B4FC; font-weight:600;}
+  .tc-parent.tc-lvl-5{background:rgba(168,85,247,0.15); border-color:rgba(168,85,247,0.4);}
+  .tc-parent.tc-lvl-5 .tc-lbl{color:#D8B4FE; font-weight:600;}
+  .tc-parent.tc-lvl-6{background:rgba(244,63,94,0.15); border-color:rgba(244,63,94,0.4);}
+  .tc-parent.tc-lvl-6 .tc-lbl{color:#FDA4AF; font-weight:600;}
+  .tc-parent.tc-lvl-7{background:rgba(245,158,11,0.15); border-color:rgba(245,158,11,0.4);}
+  .tc-parent.tc-lvl-7 .tc-lbl{color:#FDE68A; font-weight:600;}
+
+  /* --- EXPANDED VS COLLAPSED STATES --- */
+  .tc-parent{cursor:pointer;}
+  .tc-parent:hover{filter:brightness(1.25); border-color:rgba(255,255,255,0.6);}
+  
+  .tc-expanded{box-shadow:inset 0 0 15px rgba(255,255,255,0.03);}
+  .tc-expanded .tc-chev{
+    background:rgba(255,255,255,0.12); color:#fff; border-radius:4px;
+    width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center;
+    font-size:10px; border:1px solid rgba(255,255,255,0.2);
+  }
+  
+  .tc-coll{
+    background:linear-gradient(135deg, rgba(245,158,11,0.2), rgba(217,119,6,0.25)) !important;
+    border:1.5px dashed rgba(245,158,11,0.75) !important;
+  }
+  .tc-coll:hover{
+    background:linear-gradient(135deg, rgba(245,158,11,0.28), rgba(217,119,6,0.38)) !important;
+    border-color:#F59E0B !important;
+  }
+  .tc-coll .tc-lbl{color:#FDE68A !important;}
+  .tc-coll .tc-chev{
+    background:#F59E0B; color:#000; border-radius:4px;
+    width:20px; height:20px; display:inline-flex; align-items:center; justify-content:center;
+    font-size:11px; font-weight:800; box-shadow:0 0 8px rgba(245,158,11,0.6);
+    animation:pulseChev 2s infinite;
+  }
+  @keyframes pulseChev{
+    0%, 100%{ transform: scale(1); box-shadow: 0 0 6px rgba(245,158,11,0.5); }
+    50%{ transform: scale(1.1); box-shadow: 0 0 12px rgba(245,158,11,0.9); }
+  }
+
+  /* --- LEAF / BUILDING ENDPOINTS --- */
+  .tc-leaf{background:rgba(15,23,42,0.65); border-color:rgba(51,65,85,0.7);}
+  .tc-bldg{background:rgba(15,23,42,0.8); border:1px solid rgba(56,189,248,0.3); cursor:pointer;}
+  .tc-bldg:hover{background:rgba(56,189,248,0.18); border-color:#38BDF8; transform:translateY(-1px);}
+  .tc-dot{width:6px;height:6px;border-radius:50%;background:rgba(148,163,184,0.6);flex-shrink:0;}
+  .tc-lbl{color:#CBD5E1;flex:1;overflow:hidden;text-overflow:ellipsis;font-size:11.5px;}
+  .tc-bldg .tc-lbl{color:#38BDF8; font-weight:500;}
+  .tc-root .tc-lbl{color:#67E8F9;font-weight:800;font-size:13px;}
   .tc-cnt{
     font-size:10px;padding:2px 7px;border-radius:10px;flex-shrink:0;
     font-weight:700;border:1px solid currentColor;
@@ -295,14 +349,7 @@
   }
   .btn-primary:hover{background:#7DD3FC;transform:translateY(-1px);box-shadow:0 6px 16px var(--accent-glow);}
 
-  /* TOAST */
-  .toast{
-    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;
-    background:var(--panel);border:1px solid var(--accent);color:#fff;padding:12px 24px;border-radius:8px;
-    font-family:var(--mono);font-size:13px;font-weight:500;transition:all .3s cubic-bezier(0.4, 0, 0.2, 1);z-index:300;pointer-events:none;
-    box-shadow:0 10px 25px rgba(0,0,0,0.5);
-  }
-  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+  /* TOAST — see style.css for full definition */
 
   /* SCROLLBAR */
   ::-webkit-scrollbar{width:8px;height:8px;}
@@ -333,7 +380,7 @@
     #detail-panel{padding:16px;}
   }
 </style>
-<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="/assets/style.css?v=1.2">
 </head>
 <body>
 <div id="app">
@@ -341,7 +388,7 @@
   <header>
     <div class="brand">
       <button id="mobile-menu-btn" title="Menu">☰</button>
-      <div class="brand-mark"></div>
+      <img src="/assets/cba-logo.png" alt="CBA Logo" class="brand-logo-img">
       <div class="brand-text">
         <h1>PETA JARINGAN PABRIK</h1>
         <p>Monitoring &amp; Kontrol Perangkat Jaringan Realtime</p>
@@ -359,7 +406,7 @@
     <div id="mobile-overlay"></div>
     <aside id="sidebar">
       <div class="search-box">
-        <input type="text" id="search-input" placeholder="Cari gedung / ruang...">
+        <input type="search" id="search-input" name="q" placeholder="Cari gedung / ruang..." autocomplete="off" spellcheck="false">
       </div>
       <div class="zone-list" id="zone-list"></div>
     </aside>
@@ -368,6 +415,9 @@
         <button class="tab-btn active" data-tab="grid">📊 Dashboard Grid</button>
         <button class="tab-btn" data-tab="topo">🗺️ Peta Topologi</button>
         <button class="tab-btn" data-tab="detail" id="tab-detail-btn">📋 Detail Lokasi</button>
+        <button class="tab-btn" data-tab="offline" id="tab-offline-btn">⚠️ Perangkat Offline</button>
+        <button class="tab-btn" data-tab="report" id="tab-report-btn">📈 Laporan SLA</button>
+        <button class="tab-btn" data-tab="audit" id="tab-audit-btn" style="display:none;">📜 Audit Trail</button>
       </div>
       <div class="view">
         <!-- Dashboard Grid (Model 1) -->
@@ -396,6 +446,18 @@
         <div class="view-panel" id="view-detail">
           <div id="detail-panel"></div>
         </div>
+        <!-- Offline Devices -->
+        <div class="view-panel" id="view-offline">
+          <div id="offline-panel" style="padding:24px 32px; overflow-y:auto; height:100%"></div>
+        </div>
+        <!-- Laporan SLA -->
+        <div class="view-panel" id="view-report">
+          <div id="report-panel" style="padding:24px 32px; overflow-y:auto; height:100%"></div>
+        </div>
+        <!-- Audit Trail -->
+        <div class="view-panel" id="view-audit">
+          <div id="audit-panel" style="padding:24px 32px; overflow-y:auto; height:100%"></div>
+        </div>
       </div>
     </main>
   </div>
@@ -405,36 +467,42 @@
 <div class="toast" id="toast"></div>
 
 <!-- ── MODAL: Ping History ── -->
-<div class="modal-overlay" id="history-modal" onclick="if(event.target===this) closeHistoryModal()">
+<div class="modal-overlay" id="history-modal" data-modal="history">
   <div class="modal" style="max-width:640px">
-    <button class="modal-close" onclick="closeHistoryModal()">✕</button>
+    <button class="modal-close" id="close-history-btn" onclick="closeHistoryModal()" title="Tutup">✕</button>
     <p class="modal-title" id="hist-title">📊 Riwayat Ping</p>
     <div id="hist-body"></div>
   </div>
 </div>
 
 <!-- ── MODAL: Reboot SSH ── -->
-<div class="modal-overlay" id="reboot-modal" onclick="if(event.target===this) closeRebootModal()">
+<div class="modal-overlay" id="reboot-modal" data-modal="reboot">
   <div class="modal" style="max-width:520px">
-    <button class="modal-close" onclick="closeRebootModal()">✕</button>
+    <button class="modal-close" id="close-reboot-btn" onclick="closeRebootModal()" title="Tutup">✕</button>
     <p class="modal-title" style="color:var(--alert)">↺ Reboot Device via SSH</p>
     <div id="reboot-body"></div>
   </div>
 </div>
 
 <!-- ── MODAL: Change Password ── -->
-<div class="modal-overlay" id="changepwd-modal" onclick="if(event.target===this) closeChangePwdModal()">
+<div class="modal-overlay" id="changepwd-modal" data-modal="changepwd">
   <div class="modal" style="max-width:440px">
-    <button class="modal-close" onclick="closeChangePwdModal()">✕</button>
+    <button class="modal-close" id="close-changepwd-btn" onclick="closeChangePwdModal()" title="Tutup">✕</button>
     <p class="modal-title">🔑 Ganti Password</p>
     <div class="pwd-fields">
       <div class="field">
         <label>Password Lama</label>
-        <input type="password" id="cp-old" placeholder="••••••••" autocomplete="current-password">
+        <div style="display:flex;gap:6px">
+          <input type="password" id="cp-old" placeholder="••••••••" autocomplete="current-password" style="flex:1">
+          <button type="button" class="icon-btn" onclick="togglePasswordVisibility('cp-old', this)" title="Tampilkan Password" style="flex-shrink:0;height:40px;width:40px;display:flex;align-items:center;justify-content:center">👁️</button>
+        </div>
       </div>
       <div class="field">
         <label>Password Baru (min. 6 karakter)</label>
-        <input type="password" id="cp-new" placeholder="••••••••" autocomplete="new-password">
+        <div style="display:flex;gap:6px">
+          <input type="password" id="cp-new" placeholder="••••••••" autocomplete="new-password" style="flex:1">
+          <button type="button" class="icon-btn" onclick="togglePasswordVisibility('cp-new', this)" title="Tampilkan Password" style="flex-shrink:0;height:40px;width:40px;display:flex;align-items:center;justify-content:center">👁️</button>
+        </div>
       </div>
       <p id="cp-err" style="color:var(--alert);font-family:var(--mono);font-size:12px;margin:0"></p>
       <div class="form-actions">
@@ -446,9 +514,9 @@
 </div>
 
 <!-- ── MODAL: Scan Results ── -->
-<div class="modal-overlay" id="scan-modal" onclick="if(event.target===this) closeScanModal()">
+<div class="modal-overlay" id="scan-modal" data-modal="scan">
   <div class="modal" style="max-width:800px; width:90%">
-    <button class="modal-close" onclick="closeScanModal()">✕</button>
+    <button class="modal-close" id="close-scan-btn" onclick="closeScanModal()" title="Tutup">✕</button>
     <p class="modal-title">🔍 Hasil Pindai Jaringan (Perangkat Baru)</p>
     <div id="scan-body" style="max-height: 60vh; overflow-y: auto; margin-bottom: 16px;"></div>
     <div class="form-actions" style="justify-content:space-between">
@@ -461,7 +529,25 @@
   </div>
 </div>
 
+<!-- ── MODAL: Add/Edit Device ── -->
+<div class="modal-overlay" id="device-modal" data-modal="device">
+  <div class="modal" style="max-width:720px; width:95%">
+    <button class="modal-close" id="close-device-btn" onclick="closeDeviceForm()" title="Tutup">✕</button>
+    <p class="modal-title" id="device-modal-title">+ Tambah Perangkat</p>
+    <div id="device-modal-body"></div>
+  </div>
+</div>
+
+<!-- ── MODAL: Manage Types & OS ── -->
+<div class="modal-overlay" id="options-modal" data-modal="options">
+  <div class="modal" style="max-width:480px; width:95%">
+    <button class="modal-close" id="close-options-btn" onclick="closeOptionsModal()" title="Tutup">✕</button>
+    <p class="modal-title" id="options-modal-title">⚙️ Kelola Pilihan</p>
+    <div id="options-modal-body" style="max-height:60vh; overflow-y:auto; margin-bottom:16px;"></div>
+  </div>
+</div>
+
 <!-- ── Main App Script ── -->
-<script src="/assets/app.js"></script>
+<script src="/assets/app.js?v=1.2"></script>
 </body>
 </html>

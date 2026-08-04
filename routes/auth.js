@@ -4,6 +4,7 @@ const bcrypt  = require('bcryptjs');
 const jwt     = require('jsonwebtoken');
 const db      = require('../db/database');
 const authMW  = require('../middleware/auth');
+const { logAudit } = require('../services/auditLog');
 
 /* ── POST /api/auth/login ─────────────────────────── */
 router.post('/login', async (req, res) => {
@@ -32,9 +33,10 @@ router.post('/login', async (req, res) => {
         id: user.id,
         username: user.username,
         role: user.role,
-        must_change_password: !!user.must_change_password
       }
     });
+    
+    logAudit(user.username, 'User Login', 'System', 'Login berhasil');
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Terjadi kesalahan pada server' });
@@ -59,6 +61,7 @@ router.post('/change-password', authMW, async (req, res) => {
     const hash = bcrypt.hashSync(new_password, 12);
     await db.execute('UPDATE users SET password_hash = ?, must_change_password = 0 WHERE id = ?', [hash, req.user.id]);
 
+    logAudit(req.user.username, 'Change Password', 'System', 'Password berhasil diubah');
     res.json({ message: 'Password berhasil diubah' });
   } catch (err) {
     console.error(err);
@@ -117,6 +120,7 @@ router.post('/users', authMW, async (req, res) => {
       [username.trim(), hash, role === 'admin' ? 'admin' : 'viewer']
     );
 
+    logAudit(req.user.username, 'Create User', username.trim(), `Role: ${role || 'viewer'}`);
     res.status(201).json({ id: result.insertId, username: username.trim(), role: role || 'viewer' });
   } catch (err) {
     console.error(err);
@@ -133,6 +137,8 @@ router.delete('/users/:id', authMW, async (req, res) => {
       return res.status(400).json({ error: 'Tidak bisa menghapus diri sendiri' });
 
     await db.execute('DELETE FROM users WHERE id = ?', [req.params.id]);
+    
+    logAudit(req.user.username, 'Delete User', `User ID: ${req.params.id}`, 'User dihapus');
     res.json({ message: 'User dihapus' });
   } catch (err) {
     console.error(err);
