@@ -897,7 +897,27 @@
 }
 .bcard-btn:active { transform: scale(0.97); }
 
-/* ══ MOBILE IMPROVEMENTS ═════════════════════════════════════════════ */
+/* ══ MOBILE IMPROVEMENTS & TOUCH OPTIMIZATIONS ═════════════════════════ */
+button, a, input, select, textarea, .tab-btn, .mt-btn, .icon-btn, .add-btn, .loc-item, .zone-head {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+aside, .modal, #mobile-overlay {
+  will-change: transform;
+}
+
+.topo-table-scroll, .mt-tree-container, .zone-list, #detail-panel, .device-table-wrap, .modal, .tabs {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Always display manage topology action buttons on mobile / touch devices */
+@media (hover: none), (max-width: 768px) {
+  .mt-node-actions {
+    opacity: 1 !important;
+  }
+}
+
 @media (max-width: 768px) {
   .modal {
     padding: 16px 20px 24px;
@@ -947,6 +967,59 @@
   
   .tabs { gap: 4px; padding: 10px 12px 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .tab-btn { font-size: 12px; padding: 8px 14px; white-space: nowrap; flex: 0 0 auto; }
+
+  /* Manage Topology Mobile Adjustments */
+  .mt-header {
+    padding: 14px 16px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .mt-header-right {
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+  }
+  .mt-search-wrap {
+    width: 100%;
+  }
+  .mt-search-input {
+    width: 100% !important;
+  }
+  .mt-add-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  .mt-stats-row {
+    padding: 10px 16px;
+    gap: 8px;
+  }
+  .mt-stat-card {
+    flex: 1 1 calc(50% - 8px);
+    padding: 8px 12px;
+  }
+  .mt-tree-container {
+    padding: 12px 10px 30px;
+  }
+  .mt-node-row {
+    min-height: 40px;
+  }
+  .mt-btn {
+    padding: 4px 7px;
+    font-size: 10px;
+  }
+
+  /* Detail Head Mobile Adjustments */
+  .detail-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .detail-head .add-btn, .detail-head button {
+    flex: 1;
+    text-align: center;
+    justify-content: center;
+  }
 }
 
 /* ══ SCROLLBAR THIN ══════════════════════════════════════════════════ */
