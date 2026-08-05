@@ -1347,3 +1347,79 @@ button:focus:not(:focus-visible) { outline: none; }
 /* Hidden node (search filter) */
 .mt-node.hidden-node { display: none; }
 
+/* ══ SLA REPORT RESPONSIVE UI ═════════════════════════════════════════ */
+.sla-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+.sla-title-area {
+  flex: 1 1 280px;
+}
+.sla-title-area h2 {
+  font-size: 22px;
+  margin: 0 0 6px;
+  color: #fff;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.sla-title-area p {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+.sla-avg {
+  color: var(--ok);
+  font-size: 16px;
+}
+.sla-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.sla-btn-secondary {
+  background: var(--panel-2) !important;
+  border: 1px solid var(--border) !important;
+  color: #fff !important;
+  font-weight: 500 !important;
+}
+.sla-btn-primary {
+  color: #04202A !important;
+  font-weight: 600 !important;
+}
+
+@media (max-width: 768px) {
+  #report-panel {
+    padding: 16px !important;
+  }
+  .sla-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .sla-title-area h2 {
+    font-size: 17px;
+    line-height: 1.3;
+  }
+  .sla-title-area p {
+    font-size: 12px;
+  }
+  .sla-actions {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+  }
+  .sla-actions .add-btn {
+    flex: 1;
+    text-align: center;
+    justify-content: center;
+    padding: 10px 10px;
+    font-size: 12px;
+  }
+}
+
+

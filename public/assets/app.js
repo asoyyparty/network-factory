@@ -1483,14 +1483,14 @@ async function renderReportView() {
     }).join('');
 
     panel.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
-        <div>
-          <h2 style="font-size:22px; margin:0 0 6px; color:#fff; font-weight:600">📈 Laporan Uptime SLA (7 Hari Terakhir)</h2>
-          <p style="font-size:13px; color:var(--text-muted); margin:0">Rata-rata ketersediaan keseluruhan pabrik: <b style="color:var(--ok); font-size:16px">${avgFactoryUptime.toFixed(2)}%</b></p>
+      <div class="sla-header">
+        <div class="sla-title-area">
+          <h2>📈 Laporan Uptime SLA (7 Hari Terakhir)</h2>
+          <p>Rata-rata ketersediaan keseluruhan pabrik: <b class="sla-avg">${avgFactoryUptime.toFixed(2)}%</b></p>
         </div>
-        <div style="display:flex; gap:10px;">
-          <button class="add-btn" style="background:var(--panel-2); border:1px solid var(--border); color:#fff; font-weight:500" onclick="exportSlaExcel()">📥 Download Excel</button>
-          <button class="add-btn" style="color:#000; font-weight:600" onclick="window.print()">🖨️ Cetak / PDF</button>
+        <div class="sla-actions">
+          <button class="add-btn sla-btn-secondary" onclick="exportSlaExcel()">📥 Download Excel</button>
+          <button class="add-btn sla-btn-primary" onclick="window.print()">🖨️ Cetak / PDF</button>
         </div>
       </div>
       <div class="device-table-wrap">
