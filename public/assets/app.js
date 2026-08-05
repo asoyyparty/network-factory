@@ -155,77 +155,51 @@ function findLocId(name){
   return l ? l.id : null;
 }
 
-function B(label, locName, children){ return {kind:'building', label, locId: findLocId(locName), children: children||[]}; }
-function N(label, children, extra){ return Object.assign({kind:'infra', label, children: children||[]}, extra||{}); }
+let NETWORK_TREE = null;
+let RAW_TOPOLOGY = [];
 
-const MIKROTIK_CBA = N('Mikrotik CBA', [
-  N('Fortigate', [
-    N('Switch MG HP Aruba', [
-      N('Switch VLAN 2 CCTV', []),
-      N('Lantai 1 Lab', [ B('QC Lab','QC LAB',[]), B('R&D PES','R&D PES',[]) ]),
-      N('Lantai 2 Lab', [ B('Office Lab','OFFICE LAB',[]), B('Musholla','MUSHOLLA',[]) ]),
-      N('Link FO Kantor Baru (202m)', [
-        N('Convert FO to LAN', [
-          N('Switch MG Distribusi', [
-            N('Switch MG A', [ B('Kantor Baru LT 2','KANTOR BARU LT 2',[]) ]),
-            N('Switch MG B', [ B('Kantor Baru LT 2','KANTOR BARU LT 2',[]) ]),
-            N('Switch MG C', [ B('Kantor Baru LT 1','KANTOR BARU LT 1',[]) ]),
-            N('Switch MG D', [ B('Kantor Baru LT 1','KANTOR BARU LT 1',[]) ]),
-            N('Convert LAN to FO', [
-              N('RM Gedung A3', [
-                B('Gedung A1','GEDUNG A1',[]), B('Gedung A2','GEDUNG A2',[]),
-                B('Gudang RMT C12','GEDUNG B1 - OFFICE GUDANG RMT C12',[]),
-                B('Office MTC Lt. 1','GEDUNG B3 - OFFICE MTC LT. 1',[]),
-                B('MTC Lt. 2','GEDUNG B3 - MTC LT. 2',[])
-              ]),
-              N('RM Kantor CF B2', [ B('Kantor CF B2','GEDUNG B1 - PROD CF',[]) ]),
-              N('RM MP Baru B4',   [ B('MP Baru B4','GEDUNG B5 - MP',[]) ]),
-              N('RM Gudang F5', [
-                B('Gedung J','GEDUNG J',[]), B('Gedung F3','GEDUNG F3',[]),
-                B('Mess Kabag','MESS DALAM KABAG',[])
-              ]),
-              N('RM Kantor F1', [ B('Gedung F4','GEDUNG F4',[]) ]),
-              N('RM Gedung H2 Assembling', [ B('Gedung I3','GEDUNG I3',[]) ]),
-              N('RM Kantor Methyl', [
-                B('Kantor Reaktor','GEDUNG E3 - OFFICE REAKTOR',[]),
-                B('Mesin','MESIN',[])
-              ]),
-              N('RM Mini Lab D5', [
-                B('Gudang Botol','GUDANG BOTOL',[]),
-                B('Officer D2','GEDUNG D2 - OFFICE BOTOL',[]),
-                B('Gedung D1','GEDUNG D1 - PROD BOTOL',[])
-              ]),
-              N('RM Kantor Filling', [
-                B('Gedung E3','GEDUNG E3',[]), B('Kantin Atas','KANTIN ATAS',[])
-              ]),
-              N('RM Kantor Mulsa', [
-                B('Kantor Gudang Mulsa','KANTOR GUDANG MULSA',[]),
-                B('Atas Tanggal Office Mulsa','ATAS TANGGAL OFFICE MULSA',[]),
-                N('SW MG Gerbang Prod Mulsa', [ B('Gerbang Produksi Mulsa','GERBANG PRODUKSI MULSA',[]) ]),
-                N('SW MG Pos Security',       [ B('Pos Security Mulsa','POS SECURITY MULSA',[]) ])
-              ])
-            ])
-          ])
-        ])
-      ]),
-      B('Primaxon','PRIMAXON',[]),
-      B('Kantor R&D PLS','KANTOR R&D PLS',[])
-    ])
-  ])
-], {id:'mikrotik_cba', extraParents:['mikrotik_maxindo']});
+async function loadTopology() {
+  const res = await api.get('/api/topology');
+  if(!res.ok) throw new Error('Gagal load topology');
+  RAW_TOPOLOGY = await res.json();
+  
+  const nodeMap = {};
+  RAW_TOPOLOGY.forEach(n => {
+    nodeMap[n.id] = {
+      id: n.id,
+      kind: n.kind,
+      label: n.label,
+      locId: n.loc_id,
+      extraParents: n.extra_parents || [],
+      children: []
+    };
+  });
+  
+  let rootNode = null;
+  RAW_TOPOLOGY.forEach(n => {
+    if (n.parent_id && nodeMap[n.parent_id]) {
+      nodeMap[n.parent_id].children.push(nodeMap[n.id]);
+    } else if (!n.parent_id) {
+      rootNode = nodeMap[n.id];
+    }
+  });
+  
+  NETWORK_TREE = rootNode;
+  
+  // Re-assign uids
+  let _uidSeq = 0;
+  function assignUid(n){ if(!n)return; n._uid = ++_uidSeq; (n.children||[]).forEach(assignUid); }
+  assignUid(NETWORK_TREE);
 
-const NETWORK_TREE = B('GUDANG IT', 'GUDANG IT', [
-  N('Fiber Optik STP', [
-    N('ODP Fiber Optik STP', [ N('Mikrotik STP', [ MIKROTIK_CBA ]) ])
-  ]),
-  N('Fiber Optik Maxindo', [
-    N('ODP Fiber Optik Maxindo', [
-      N('Router FO Telkom / Radio Wireless FR BSM', [
-        N('Mikrotik Maxindo', [], {id:'mikrotik_maxindo'})
-      ])
-    ])
-  ])
-]);
+  // Initialize collapsed nodes (only on first load)
+  if (collapsedNodes.size === 0) {
+    (function _initColl(n){
+      if(!n) return;
+      if (n.label && n.label.startsWith('Link FO')) collapsedNodes.add(n._uid);
+      (n.children||[]).forEach(_initColl);
+    })(NETWORK_TREE);
+  }
+}
 
 let DEVICE_TYPES = [];
 let OS_TYPES     = [];
@@ -618,15 +592,10 @@ function renderGridDashboard() {
 
 /* Assign stable UIDs to every node in the tree (run once at load) */
 let _uidSeq = 0;
-(function _uid(n){ n._uid = ++_uidSeq; (n.children||[]).forEach(_uid); })(NETWORK_TREE);
-
+// UID assignment is now handled in loadTopology()
 /* Nodes that start collapsed */
 const collapsedNodes = new Set();
-(function _initColl(n){
-  /* Collapse "Link FO Kantor Baru" subtree by default — it's huge */
-  if (n.label && n.label.startsWith('Link FO')) collapsedNodes.add(n._uid);
-  (n.children||[]).forEach(_initColl);
-})(NETWORK_TREE);
+// Collapsed nodes are initialized in loadTopology() after tree is built
 
 /* Get all currently-visible leaf paths (respects collapsed nodes) */
 function _leafPaths(node, path){
@@ -640,6 +609,7 @@ function escapeSvg(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'
 
 /* Build the HTML for the hierarchical table */
 function buildTopoTable(){
+  if(!NETWORK_TREE) return '';
   const paths  = _leafPaths(NETWORK_TREE, []);
   const maxCol = Math.max(...paths.map(p => p.length - 1));
 
@@ -745,10 +715,13 @@ function switchTab(name){
   $('#view-offline').classList.toggle('active', name==='offline');
   $('#view-report').classList.toggle('active', name==='report');
   $('#view-audit').classList.toggle('active', name==='audit');
+  const vmt = $('#view-manage-topo');
+  if(vmt) vmt.classList.toggle('active', name==='manage-topo');
   if(name==='grid') renderGridDashboard();
   if(name==='offline') renderOfflineDevices();
   if(name==='report') renderReportView();
   if(name==='audit') renderAuditView();
+  if(name==='manage-topo') renderManageTopo();
 }
 
 function refreshActiveView() {
@@ -1658,6 +1631,11 @@ async function init(){
     }
 
     // Muat opsi & data device dari API
+    try {
+      await loadTopology();
+    } catch(topoErr) {
+      console.warn('[Topology] Gagal memuat topologi dari server, akan ditampilkan kosong:', topoErr.message);
+    }
     await loadOptions();
     await loadDevices();
 
@@ -1859,5 +1837,240 @@ if (mobileMenuBtn && mobileOverlay && sidebar) {
     }
   });
 }
+
+/* ── MANAGE TOPOLOGY ── */
+let mtCollapsedSet = new Set();
+
+async function renderManageTopo() {
+  const rootContainer = $('#mt-tree-root');
+  if(!rootContainer) return;
+  
+  const totalNodes = RAW_TOPOLOGY.length;
+  const infraCount = RAW_TOPOLOGY.filter(n => n.kind === 'infra').length;
+  const bldgCount  = RAW_TOPOLOGY.filter(n => n.kind === 'building').length;
+  
+  const countEl = $('#mt-node-count');
+  if (countEl) countEl.textContent = `${totalNodes} Total Node (${infraCount} Infra, ${bldgCount} Lokasi)`;
+  
+  const statsRow = $('#mt-stats-row');
+  if (statsRow) {
+    statsRow.innerHTML = `
+      <div class="mt-stat-card">
+        <span class="mt-stat-icon">🌐</span>
+        <div class="mt-stat-info">
+          <span class="mt-stat-val">${totalNodes}</span>
+          <span class="mt-stat-lbl">Total Node</span>
+        </div>
+      </div>
+      <div class="mt-stat-card">
+        <span class="mt-stat-icon">⚡</span>
+        <div class="mt-stat-info">
+          <span class="mt-stat-val" style="color:#fbbf24">${infraCount}</span>
+          <span class="mt-stat-lbl">Infrastruktur</span>
+        </div>
+      </div>
+      <div class="mt-stat-card">
+        <span class="mt-stat-icon">🏢</span>
+        <div class="mt-stat-info">
+          <span class="mt-stat-val" style="color:#4ade80">${bldgCount}</span>
+          <span class="mt-stat-lbl">Lokasi / Gedung</span>
+        </div>
+      </div>
+    `;
+  }
+  
+  if (totalNodes === 0) {
+    rootContainer.innerHTML = `
+      <div class="mt-empty">
+        <span class="mt-empty-icon">🗺️</span>
+        <span class="mt-empty-text">Belum ada node topologi. Silakan tambah node baru.</span>
+        <button class="btn ok" onclick="openNodeForm()">+ Tambah Node</button>
+      </div>
+    `;
+    return;
+  }
+  
+  const map = {};
+  const roots = [];
+  RAW_TOPOLOGY.forEach(n => {
+    map[n.id] = { ...n, children: [] };
+  });
+  RAW_TOPOLOGY.forEach(n => {
+    if (n.parent_id && map[n.parent_id]) {
+      map[n.parent_id].children.push(map[n.id]);
+    } else {
+      roots.push(map[n.id]);
+    }
+  });
+  
+  function renderTreeNode(node, depth = 0, isLastArray = []) {
+    const hasKids = node.children.length > 0;
+    const isCollapsed = mtCollapsedSet.has(node.id);
+    const icon = node.kind === 'building' ? '🏢' : '⚡';
+    
+    let indentHtml = '<span class="mt-indent-sp">';
+    for (let i = 0; i < depth; i++) {
+      const isLastSibling = isLastArray[i];
+      indentHtml += `<span class="mt-indent-line ${isLastSibling ? 'last' : ''}"></span>`;
+    }
+    indentHtml += '</span>';
+    
+    let html = `
+      <div class="mt-node" data-id="${escapeHtml(node.id)}" data-label="${escapeHtml(node.label.toLowerCase())}">
+        <div class="mt-node-row" data-depth="${depth}">
+          ${indentHtml}
+          <span class="mt-toggle ${hasKids ? (isCollapsed ? '' : 'expanded') : 'leaf'}" onclick="toggleMtNode('${escapeHtml(node.id)}', event)">▶</span>
+          <span class="mt-node-icon">${icon}</span>
+          <span class="mt-kind mt-kind-${node.kind}">${node.kind}</span>
+          <span class="mt-label">${escapeHtml(node.label)}</span>
+          ${hasKids ? `<span class="mt-child-count">${node.children.length} anak</span>` : ''}
+          <div class="mt-node-actions">
+            <button class="mt-btn mt-btn-add" title="Tambah Sub-node" onclick="openNodeForm(null, '${escapeHtml(node.id)}')">＋ Anak</button>
+            <button class="mt-btn mt-btn-edit" onclick="openNodeForm('${escapeHtml(node.id)}')">Edit</button>
+            <button class="mt-btn mt-btn-del" onclick="deleteNode('${escapeHtml(node.id)}')">Hapus</button>
+          </div>
+        </div>
+        ${hasKids ? `
+          <div class="mt-children ${isCollapsed ? 'collapsed' : ''}" id="mt-children-${escapeHtml(node.id)}">
+            ${node.children.map((child, idx) => renderTreeNode(child, depth + 1, [...isLastArray, idx === node.children.length - 1])).join('')}
+          </div>
+        ` : ''}
+      </div>
+    `;
+    return html;
+  }
+  
+  rootContainer.innerHTML = roots.map((rootNode, idx) => renderTreeNode(rootNode, 0, [idx === roots.length - 1])).join('');
+}
+
+function toggleMtNode(id, evt) {
+  if (evt) evt.stopPropagation();
+  if (mtCollapsedSet.has(id)) {
+    mtCollapsedSet.delete(id);
+  } else {
+    mtCollapsedSet.add(id);
+  }
+  const childEl = $(`#mt-children-${id}`);
+  const nodeEl = $(`.mt-node[data-id="${id}"]`);
+  const toggleEl = nodeEl ? nodeEl.querySelector('.mt-toggle') : null;
+  if (childEl) childEl.classList.toggle('collapsed');
+  if (toggleEl) toggleEl.classList.toggle('expanded');
+}
+
+function filterTopoTree(query) {
+  const q = (query || '').toLowerCase().trim();
+  const nodes = $$('.mt-node');
+  
+  if (!q) {
+    nodes.forEach(n => n.classList.remove('hidden-node'));
+    return;
+  }
+  
+  nodes.forEach(n => {
+    const label = n.dataset.label || '';
+    if (label.includes(q)) {
+      n.classList.remove('hidden-node');
+      let parentNode = n.parentElement ? n.parentElement.closest('.mt-node') : null;
+      while (parentNode) {
+        parentNode.classList.remove('hidden-node');
+        const childContainer = parentNode.querySelector('.mt-children');
+        if (childContainer) childContainer.classList.remove('collapsed');
+        parentNode = parentNode.parentElement ? parentNode.parentElement.closest('.mt-node') : null;
+      }
+    } else {
+      n.classList.add('hidden-node');
+    }
+  });
+}
+
+function onNodeKindChange() {
+  const kind = $('#node-kind').value;
+  $('#node-loc-field').style.display = kind === 'building' ? 'block' : 'none';
+}
+
+function openNodeForm(id = null, parentId = null) {
+  const modal = $('#node-modal');
+  if(!modal) return;
+  
+  const parentSelect = $('#node-parent-id');
+  parentSelect.innerHTML = '<option value="">-- Root (Tidak Punya Induk) --</option>' + 
+    RAW_TOPOLOGY.filter(n => n.id !== id).map(n => `<option value="${escapeHtml(n.id)}">${escapeHtml(n.label)}</option>`).join('');
+    
+  const locSelect = $('#node-loc-id');
+  locSelect.innerHTML = '<option value="">-- Pilih Lokasi --</option>' + 
+    state.locations.map(l => `<option value="${escapeHtml(l.id)}">${escapeHtml(l.nama)}</option>`).join('');
+    
+  if (id) {
+    const node = RAW_TOPOLOGY.find(n => n.id === id);
+    if(node) {
+      $('#node-modal-title').textContent = 'Edit Node: ' + node.label;
+      $('#node-id').value = node.id;
+      $('#node-id-display').value = node.id;
+      $('#node-label').value = node.label;
+      $('#node-kind').value = node.kind;
+      $('#node-parent-id').value = node.parent_id || '';
+      $('#node-loc-id').value = node.loc_id || '';
+    }
+  } else {
+    $('#node-modal-title').textContent = parentId ? 'Tambah Sub-node' : 'Tambah Node Baru';
+    $('#node-form').reset();
+    $('#node-id').value = '';
+    if (parentId) $('#node-parent-id').value = parentId;
+  }
+  
+  onNodeKindChange();
+  modal.classList.add('open');
+}
+
+function closeNodeForm() {
+  const modal = $('#node-modal');
+  if(modal) modal.classList.remove('open');
+}
+
+async function submitNodeForm() {
+  const id = $('#node-id').value;
+  const payload = {
+    label: $('#node-label').value,
+    kind: $('#node-kind').value,
+    parent_id: $('#node-parent-id').value || null,
+    loc_id: $('#node-kind').value === 'building' ? $('#node-loc-id').value : null,
+  };
+  
+  try {
+    const url = id ? '/api/topology/' + id : '/api/topology';
+    const method = id ? 'PUT' : 'POST';
+    if (!id) payload.id = 'node_' + Date.now();
+    
+    const res = id 
+      ? await api.request('PUT', url, payload)
+      : await api.request('POST', url, payload);
+    
+    if(!res.ok) throw new Error(await res.text());
+    
+    showToast(id ? 'Node diperbarui' : 'Node ditambahkan', 'ok');
+    closeNodeForm();
+    await loadTopology();
+    renderTopology();
+    renderManageTopo();
+  } catch(e) {
+    showToast(e.message, 'error');
+  }
+}
+
+async function deleteNode(id) {
+  if(!confirm('Yakin ingin menghapus node ini? (Anak-anaknya akan terputus dari parent)')) return;
+  try {
+    const res = await api.request('DELETE', '/api/topology/' + id);
+    if(!res.ok) throw new Error(await res.text());
+    showToast('Node dihapus', 'ok');
+    await loadTopology();
+    renderTopology();
+    renderManageTopo();
+  } catch(e) {
+    showToast(e.message, 'error');
+  }
+}
+
+// switchTab already handles manage-topo above
 
 init();

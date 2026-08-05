@@ -451,6 +451,7 @@
         <button class="tab-btn" data-tab="offline" id="tab-offline-btn">⚠️ Perangkat Offline</button>
         <button class="tab-btn" data-tab="report" id="tab-report-btn">📈 Laporan SLA</button>
         <button class="tab-btn" data-tab="audit" id="tab-audit-btn" style="display:none;">📜 Audit Trail</button>
+        <button class="tab-btn" data-tab="manage-topo">⚙️ Kelola Topologi</button>
       </div>
       <div class="view">
         <!-- Dashboard Grid (Model 1) -->
@@ -478,6 +479,33 @@
         <!-- Detail -->
         <div class="view-panel" id="view-detail">
           <div id="detail-panel"></div>
+        </div>
+        <!-- Manage Topo Panel -->
+        <div class="view-panel" id="view-manage-topo">
+          <div id="manage-topo-panel" style="display:flex; flex-direction:column; height:100%; overflow:hidden;">
+            <!-- Header Bar -->
+            <div class="mt-header">
+              <div class="mt-header-left">
+                <span class="mt-title">⚙️ Kelola Struktur Topologi</span>
+                <span class="mt-subtitle" id="mt-node-count">Memuat...</span>
+              </div>
+              <div class="mt-header-right">
+                <div class="mt-search-wrap">
+                  <span class="mt-search-icon">🔍</span>
+                  <input type="text" id="mt-search" class="mt-search-input" placeholder="Cari node..." oninput="filterTopoTree(this.value)">
+                </div>
+                <button class="btn ok mt-add-btn" onclick="openNodeForm()">
+                  <span>＋</span> Tambah Node
+                </button>
+              </div>
+            </div>
+            <!-- Stats Row -->
+            <div class="mt-stats-row" id="mt-stats-row"></div>
+            <!-- Tree Container -->
+            <div class="mt-tree-container" id="mt-tree-container">
+              <div id="mt-tree-root"></div>
+            </div>
+          </div>
         </div>
         <!-- Offline Devices -->
         <div class="view-panel" id="view-offline">
@@ -581,6 +609,51 @@
 </div>
 
 <!-- ── Main App Script ── -->
-<script src="/assets/app.js?v=1.2"></script>
+  <!-- Node Modal -->
+  <div class="modal-overlay" id="node-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="node-modal-title">Tambah/Edit Node Topologi</h3>
+        <button class="btn icon-btn" onclick="closeNodeForm()">❌</button>
+      </div>
+      <form id="node-form" onsubmit="event.preventDefault(); submitNodeForm();">
+        <input type="hidden" id="node-id">
+        <div class="form-grid">
+          <div class="field">
+            <label>ID Node (Kosongkan jika baru)</label>
+            <input type="text" id="node-id-display" disabled>
+          </div>
+          <div class="field">
+            <label>Tipe (Kind)</label>
+            <select id="node-kind" required onchange="onNodeKindChange()">
+              <option value="infra">Infrastruktur (Switch/Router dll)</option>
+              <option value="building">Bangunan / Lokasi (Building)</option>
+            </select>
+          </div>
+          <div class="field span-2">
+            <label>Nama / Label</label>
+            <input type="text" id="node-label" required>
+          </div>
+          <div class="field span-2" id="node-loc-field" style="display:none;">
+            <label>ID Lokasi (jika Bangunan)</label>
+            <select id="node-loc-id"></select>
+          </div>
+          <div class="field span-2">
+            <label>Induk (Parent Node)</label>
+            <select id="node-parent-id">
+              <option value="">-- Root (Tidak Punya Induk) --</option>
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:20px; display:flex; justify-content:flex-end; gap:10px;">
+          <button type="button" class="btn idle" onclick="closeNodeForm()">Batal</button>
+          <button type="submit" class="btn ok">Simpan Node</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/assets/app.js?v=1.2"></script>
 </body>
 </html>

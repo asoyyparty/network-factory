@@ -14,6 +14,7 @@ const devicesRoutes = require('./routes/devices');
 const pingRoutes    = require('./routes/ping');
 const controlRoutes = require('./routes/control');
 const auditRoutes   = require('./routes/audit');
+const topologyRoutes= require('./routes/topology');
 const authMW        = require('./middleware/auth');
 
 // Services
@@ -32,6 +33,7 @@ app.use('/api/devices', authMW, devicesRoutes);
 app.use('/api/ping',    authMW, pingRoutes);
 app.use('/api/control', authMW, controlRoutes);
 app.use('/api/audit',   authMW, auditRoutes);
+app.use('/api/topology',authMW, topologyRoutes);
 
 /* ─── Health check ────────────────────────────────────── */
 app.get('/api/health', (req, res) => {

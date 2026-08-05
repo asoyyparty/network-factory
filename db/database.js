@@ -110,6 +110,21 @@ async function initializeDB() {
     )
   `);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS topology_nodes (
+      id VARCHAR(50) PRIMARY KEY,
+      label VARCHAR(255) NOT NULL,
+      kind VARCHAR(50) NOT NULL,
+      loc_id VARCHAR(50),
+      parent_id VARCHAR(50),
+      extra_parents JSON,
+      order_idx INT DEFAULT 0
+    )
+  `);
+
+  const seedTopology = require('./seed_topology');
+  await seedTopology(pool);
+
   // Seed default device types if empty
   const [typesCount] = await pool.query('SELECT COUNT(*) as count FROM device_types');
   if (typesCount[0].count === 0) {
