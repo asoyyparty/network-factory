@@ -1463,10 +1463,35 @@ function renderLoadingState(msg = 'Memuat data...') {
   `;
 }
 
+function showBgLoadingIndicator(panel) {
+  let badge = panel.querySelector('.bg-loading-badge');
+  if (!badge) {
+    const titleArea = panel.querySelector('.sla-title-area') || panel.querySelector('.sla-header') || panel.querySelector('h2') || panel.firstElementChild;
+    if (titleArea) {
+      badge = document.createElement('span');
+      badge.className = 'bg-loading-badge';
+      badge.innerHTML = `<span class="bg-spinner"></span> Memperbarui...`;
+      titleArea.appendChild(badge);
+    }
+  }
+  if (badge) badge.style.opacity = '1';
+}
+
+function hideBgLoadingIndicator(panel) {
+  const badge = panel.querySelector('.bg-loading-badge');
+  if (badge) badge.style.opacity = '0';
+}
+
 async function renderReportView() {
   const panel = $('#report-panel');
   if (!panel) return;
-  panel.innerHTML = renderLoadingState('Memuat Laporan Uptime SLA...');
+
+  // Render full spinner ONLY on initial load when no data exists yet
+  if (!currentSlaReport || currentSlaReport.length === 0) {
+    panel.innerHTML = renderLoadingState('Memuat Laporan Uptime SLA...');
+  } else {
+    showBgLoadingIndicator(panel);
+  }
 
   try {
     const res = await api.get('/api/ping/sla-report?days=7');
@@ -1571,17 +1596,24 @@ function exportSlaExcel() {
 }
 
 /* ── 21. AUDIT TRAIL VIEW ──────────────────────────────────────────── */
+let currentAuditLogs = [];
+
 async function renderAuditView() {
   const panel = $('#audit-panel');
   if (!panel) return;
-  panel.innerHTML = renderLoadingState('Memuat Log Audit Sistem...');
+
+  if (!currentAuditLogs || currentAuditLogs.length === 0) {
+    panel.innerHTML = renderLoadingState('Memuat Log Audit Sistem...');
+  } else {
+    showBgLoadingIndicator(panel);
+  }
 
   try {
     const res = await api.get('/api/audit?limit=100');
     const data = await res.json();
-    const logs = data.logs || [];
+    currentAuditLogs = data.logs || [];
     
-    const rows = logs.map(l => `
+    const rows = currentAuditLogs.map(l => `
       <tr>
         <td style="font-family:var(--mono); font-size:12px; color:var(--text-muted);">${new Date(l.created_at).toLocaleString('id-ID')}</td>
         <td><b>${escapeHtml(l.username)}</b></td>
