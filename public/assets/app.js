@@ -1836,4 +1836,28 @@ function togglePasswordVisibility(id, btn) {
   }
 }
 
+/* --- Mobile Menu Interactions --- */
+const mobileMenuBtn = $('#mobile-menu-btn');
+const mobileOverlay = $('#mobile-overlay');
+const sidebar = $('#sidebar');
+
+if (mobileMenuBtn && mobileOverlay && sidebar) {
+  mobileMenuBtn.addEventListener('click', () => {
+    sidebar.classList.add('mobile-open');
+    mobileOverlay.classList.add('show');
+  });
+
+  mobileOverlay.addEventListener('click', () => {
+    sidebar.classList.remove('mobile-open');
+    mobileOverlay.classList.remove('show');
+  });
+
+  sidebar.addEventListener('click', (e) => {
+    if (e.target.closest('.zone-item') && window.innerWidth <= 768) {
+      sidebar.classList.remove('mobile-open');
+      mobileOverlay.classList.remove('show');
+    }
+  });
+}
+
 init();

@@ -359,25 +359,58 @@
 
   /* Responsive Adjustments */
   @media (max-width:900px){
-    .stats {display:none;} /* Hide ping stats on small header to save space */
+    .stats {display:none;}
   }
   @media (max-width:768px){
-    header{padding:12px 16px;}
+    header{padding:12px 16px; gap: 8px;}
     .brand h1 {font-size:14px;}
     .brand p {display:none;}
     #mobile-menu-btn{display:block;}
     
     /* Sidebar becomes off-canvas mobile menu */
     aside{
-      position:absolute;z-index:50;height:100%;top:0;left:0;
+      position:absolute;z-index:150;height:100%;top:0;left:0;
       transform:translateX(-100%);box-shadow: 10px 0 25px rgba(0,0,0,0.5);
+      transition:transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     aside.mobile-open{transform:translateX(0);}
     
+    #mobile-overlay{z-index: 140;}
+    
     .form-grid{grid-template-columns:1fr;}
     .field.span-2,.field.span-3{grid-column:span 1;}
-    .tabs{padding:12px 16px 0;}
+    
+    /* Scrollable horizontal tabs */
+    .tabs{
+      padding:10px 16px 0;
+      display: flex;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      white-space: nowrap;
+      gap: 8px;
+    }
+    .tabs::-webkit-scrollbar { display: none; }
+    
+    .tab-btn { flex: 0 0 auto; padding: 8px 12px; }
+    
     #detail-panel{padding:16px;}
+    
+    /* Modals bottom-sheet style on mobile */
+    .modal {
+      width: 100% !important;
+      max-width: none !important;
+      height: 100% !important;
+      max-height: 100vh !important;
+      border-radius: 12px 12px 0 0 !important;
+      margin-top: auto;
+      padding: 24px 16px !important;
+      transform: translateY(100%) scale(1);
+    }
+    .modal-overlay.open .modal {
+      transform: translateY(0) scale(1);
+    }
+    .modal-overlay { align-items: flex-end; padding: 0; }
   }
 </style>
 <link rel="stylesheet" href="/assets/style.css?v=1.2">

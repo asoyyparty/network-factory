@@ -55,7 +55,10 @@ const wss = new WebSocket.Server({ server, path: '/ws' });
 wss.on('connection', (ws, req) => {
   // Baca token dari query string: /ws?token=xxx
   try {
-    const urlObj   = new URL(req.url, 'http://localhost');
+    const urlObj = new URL(
+  req.url,
+  `http://${req.headers.host}`
+);
     const token    = urlObj.searchParams.get('token');
     if (!token) { ws.close(4001, 'Unauthorized'); return; }
 
