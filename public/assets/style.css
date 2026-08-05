@@ -898,22 +898,55 @@
 .bcard-btn:active { transform: scale(0.97); }
 
 /* ══ MOBILE IMPROVEMENTS ═════════════════════════════════════════════ */
-@media (max-width: 520px) {
-  .modal { padding: 24px 16px 20px; border-radius: 14px 14px 0 0; max-width: 100%; max-height: 90vh; }
+@media (max-width: 768px) {
+  .modal {
+    padding: 16px 20px 24px;
+    border-radius: 20px 20px 0 0;
+    max-width: 100%;
+    max-height: 88vh;
+    overflow-y: auto;
+  }
   .modal-overlay { align-items: flex-end; padding: 0; }
   .modal-overlay.open .modal { transform: translateY(0) scale(1); }
-  .modal { transform: translateY(40px); }
+  .modal { transform: translateY(100%); }
+  
+  .form-grid { grid-template-columns: 1fr !important; gap: 12px; }
+  .field.span-2, .field.span-3 { grid-column: span 1 !important; }
+  
+  /* Touch-friendly inputs */
+  .field input, .field select, .field textarea {
+    padding: 12px 14px;
+    font-size: 14px;
+    min-height: 44px;
+    border-radius: 8px;
+  }
+  
+  /* Pinned / Stretch action buttons at bottom of modals */
+  .form-actions, div[style*="justify-content: flex-end"], div[style*="justify-content:flex-end"] {
+    display: flex !important;
+    gap: 10px !important;
+    width: 100% !important;
+    margin-top: 20px !important;
+  }
+  .form-actions button, div[style*="justify-content: flex-end"] button, div[style*="justify-content:flex-end"] button {
+    flex: 1 !important;
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+    border-radius: 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+  
   .hist-stats { grid-template-columns: 1fr 1fr; gap: 8px; }
   .hist-stat { padding: 12px 10px; }
   .hist-stat .hs-val { font-size: 20px; }
   .toast { bottom: 16px; min-width: calc(100vw - 32px); }
   .bcard-stats { grid-template-columns: repeat(3, 1fr); }
-}
-
-@media (max-width: 480px) {
-  .tabs { gap: 2px; padding: 10px 12px 0; overflow-x: auto; }
-  .tab-btn { font-size: 11px; padding: 8px 12px; white-space: nowrap; }
-  .form-grid { grid-template-columns: 1fr !important; }
+  
+  .tabs { gap: 4px; padding: 10px 12px 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tab-btn { font-size: 12px; padding: 8px 14px; white-space: nowrap; flex: 0 0 auto; }
 }
 
 /* ══ SCROLLBAR THIN ══════════════════════════════════════════════════ */

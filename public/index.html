@@ -400,12 +400,24 @@
     .modal {
       width: 100% !important;
       max-width: none !important;
-      height: 100% !important;
-      max-height: 100vh !important;
-      border-radius: 12px 12px 0 0 !important;
+      height: auto !important;
+      max-height: 88vh !important;
+      border-radius: 20px 20px 0 0 !important;
       margin-top: auto;
-      padding: 24px 16px !important;
+      padding: 16px 20px 24px !important;
       transform: translateY(100%) scale(1);
+      display: flex;
+      flex-direction: column;
+    }
+    .modal::before {
+      content: '';
+      display: block;
+      width: 36px;
+      height: 4px;
+      background: rgba(156, 163, 175, 0.35);
+      border-radius: 2px;
+      margin: 0 auto 14px auto;
+      flex-shrink: 0;
     }
     .modal-overlay.open .modal {
       transform: translateY(0) scale(1);
