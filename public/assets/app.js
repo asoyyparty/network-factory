@@ -1453,10 +1453,20 @@ async function wakeDevice(deviceId) {
 /* ── 20. SLA REPORT VIEW ───────────────────────────────────────────── */
 let currentSlaReport = [];
 
+function renderLoadingState(msg = 'Memuat data...') {
+  return `
+    <div class="loading-state">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">${escapeHtml(msg)}</div>
+      <div class="loading-subtext">Mohon tunggu sebentar</div>
+    </div>
+  `;
+}
+
 async function renderReportView() {
   const panel = $('#report-panel');
   if (!panel) return;
-  panel.innerHTML = `<p style="color:var(--text-muted)">Memuat laporan SLA...</p>`;
+  panel.innerHTML = renderLoadingState('Memuat Laporan Uptime SLA...');
 
   try {
     const res = await api.get('/api/ping/sla-report?days=7');
@@ -1564,7 +1574,7 @@ function exportSlaExcel() {
 async function renderAuditView() {
   const panel = $('#audit-panel');
   if (!panel) return;
-  panel.innerHTML = `<p style="color:var(--text-muted)">Memuat audit trail...</p>`;
+  panel.innerHTML = renderLoadingState('Memuat Log Audit Sistem...');
 
   try {
     const res = await api.get('/api/audit?limit=100');
