@@ -112,41 +112,130 @@
   }
   #mobile-overlay.show{display:block;opacity:1;}
 
+  /* ── SIDEBAR (Hallmark Industrial Telemetry Index-Rail) ── */
   aside{
-    width:300px;flex-shrink:0;border-right:1px solid var(--border);
+    width:320px;flex-shrink:0;border-right:1px solid var(--border);
     background:var(--panel);
     display:flex;flex-direction:column;min-height:0;z-index:50;
     transition:transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .search-box{padding:12px 16px;border-bottom:1px solid var(--border);}
-  .search-box input{
-    width:100%;padding:8px 12px;background:var(--panel-2);border:1px solid var(--border);
-    color:var(--text);border-radius:6px;font-size:13px;
+  .sidebar-top{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 14px;border-bottom:1px solid var(--border);
+    background:var(--panel);flex-shrink:0;
   }
-  .search-box input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(56, 139, 253, 0.25);}
-  .zone-list{flex:1;overflow-y:auto;padding:8px;}
-  .zone-group{margin-bottom:2px;}
+  .sidebar-top-meta{display:flex;align-items:baseline;gap:8px;font-family:var(--mono);}
+  .st-index-tag{font-size:10px;font-weight:700;letter-spacing:0.08em;color:var(--accent);}
+  .st-index-title{font-size:11px;font-weight:600;letter-spacing:0.04em;color:var(--text-muted);}
+  .sidebar-top-tools{display:flex;align-items:center;gap:6px;}
+  .st-tool-btn{
+    display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);
+    font-size:10.5px;font-weight:600;padding:4px 8px;border:1px solid var(--border);
+    border-radius:4px;background:var(--panel-2);color:var(--text-muted);cursor:pointer;
+    transition:background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .st-tool-btn:hover{background:var(--color-paper-hover);color:var(--text);border-color:var(--color-rule-focus);}
+  .st-tool-btn:active{transform:translateY(1px);}
+  .st-tool-btn:focus-visible{outline:2px solid var(--color-focus);outline-offset:1px;}
+
+  .search-box{padding:10px 12px 6px;border-bottom:none;}
+  .search-input-shell{position:relative;display:flex;align-items:center;width:100%;}
+  .search-icon-symbol{position:absolute;left:10px;color:var(--color-ink-3);font-size:14px;pointer-events:none;line-height:1;}
+  .search-box input{
+    width:100%;padding:7px 32px 7px 28px;background:var(--color-paper);border:1px solid var(--border);
+    color:var(--text);border-radius:6px;font-size:12.5px;font-family:var(--sans);font-weight:400;
+  }
+  .search-box input::placeholder{color:var(--color-ink-3);}
+  .search-box input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 1px var(--accent);background:var(--color-paper);}
+  .search-kbd-hint{
+    position:absolute;right:8px;font-family:var(--mono);font-size:10px;font-weight:600;
+    color:var(--color-ink-3);background:var(--panel-2);border:1px solid var(--border);
+    border-radius:3px;padding:1px 5px;pointer-events:none;line-height:1.3;
+  }
+
+  .sidebar-quick-filters{display:flex;gap:4px;padding:6px 12px 10px;border-bottom:1px solid var(--border);}
+  .sqf-chip{
+    flex:1;text-align:center;font-family:var(--mono);font-size:10px;font-weight:600;
+    letter-spacing:0.03em;padding:4px 4px;border:1px solid var(--border);border-radius:4px;
+    background:var(--color-paper);color:var(--color-ink-3);cursor:pointer;
+    transition:background 0.15s, border-color 0.15s, color 0.15s;
+  }
+  .sqf-chip:hover{color:var(--text-muted);background:var(--panel-2);border-color:var(--color-rule-focus);}
+  .sqf-chip.active{background:var(--panel-2);color:var(--text);border-color:var(--accent);font-weight:700;}
+  .sqf-chip:active{transform:translateY(1px);}
+  .sqf-chip:focus-visible{outline:2px solid var(--color-focus);outline-offset:1px;}
+
+  .zone-list{flex:1;overflow-y:auto;padding:8px 8px 12px;scrollbar-width:thin;scrollbar-color:var(--border) transparent;}
+  .zone-group{margin-bottom:4px;border-radius:6px;}
   .zone-head{
-    display:flex;align-items:center;justify-content:space-between;padding:8px 10px;
-    cursor:pointer;border-radius:6px;user-select:none;transition:background 0.15s;
+    display:flex;align-items:center;justify-content:space-between;padding:7px 8px;
+    cursor:pointer;border-radius:6px;user-select:none;transition:background 0.15s ease, border-color 0.15s ease;
+    border:1px solid transparent;
   }
   .zone-head:hover{background:var(--panel-2);}
-  .zone-head:focus-visible{outline:none;background:var(--panel-2);box-shadow:0 0 0 2px var(--accent);}
-  .zone-head .zname{font-family:var(--sans);font-size:12.5px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:8px;}
-  .zone-head .zcount{font-family:var(--mono);font-size:11px;color:var(--text-muted);background:var(--panel);padding:1px 6px;border-radius:4px;border:1px solid var(--border);font-variant-numeric:tabular-nums;}
-  .zone-head .chevron{color:var(--text-muted);font-size:11px;transition:transform 0.15s ease;}
-  .zone-group.open .chevron{transform:rotate(90deg);}
-  .zone-items{max-height:0;overflow:hidden;transition:max-height 0.25s ease;}
-  .zone-group.open .zone-items{max-height:2000px;}
-  .loc-item{
-    padding:7px 10px 7px 28px;font-size:13px;color:var(--text-muted);cursor:pointer;
-    border-left:2px solid transparent;display:flex;align-items:center;gap:8px;
-    transition:background 0.15s ease, color 0.15s ease;border-radius:0 4px 4px 0;
+  .zone-head:focus-visible{outline:none;border-color:var(--accent);background:var(--panel-2);}
+  .zone-head .zname{font-family:var(--sans);font-size:12.5px;font-weight:600;color:var(--text);display:flex;align-items:center;gap:7px;}
+  .zone-head .zone-idx{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--accent);opacity:0.85;}
+  .zone-head .zcount{font-family:var(--mono);font-size:10.5px;color:var(--text-muted);background:var(--color-paper);padding:1px 6px;border-radius:4px;border:1px solid var(--border);font-variant-numeric:tabular-nums;}
+  .zone-head .chevron{color:var(--color-ink-3);font-size:9px;transition:transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);display:inline-block;}
+  .zone-group.open .chevron{transform:rotate(90deg);color:var(--text-muted);}
+
+  /* Index-rail vertical bus line */
+  .zone-items{
+    position:relative;margin-left:14px;padding-left:10px;border-left:1px solid var(--border);
+    max-height:0;overflow:hidden;transition:max-height 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   }
-  .loc-item:hover{background:var(--panel-2);color:var(--text);}
-  .loc-item.active{border-left-color:var(--accent);color:var(--text);background:rgba(56, 139, 253, 0.1);font-weight:500;}
-  .loc-item .status-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;}
+  .zone-group.open .zone-items{max-height:3000px;padding-top:2px;padding-bottom:4px;}
+
+  /* Location item (Hallmark state discipline & tactile spine) */
+  .loc-item{
+    position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:6px 8px;margin-bottom:2px;font-size:12.5px;color:var(--text-muted);cursor:pointer;
+    border-radius:4px;border:1px solid transparent;transition:background 0.12s ease, color 0.12s ease, border-color 0.12s ease, transform 0.08s ease;
+  }
+  .loc-item::before{
+    content:'';position:absolute;left:-11px;top:50%;width:8px;height:1px;background:var(--border);
+  }
+  .loc-item:hover{background:var(--color-paper-hover);color:var(--text);border-color:var(--border);}
+  .loc-item:active{transform:translateY(1px);}
+  .loc-item:focus-visible{outline:2px solid var(--color-focus);outline-offset:1px;}
+  .loc-item.active{
+    background:var(--panel-2);color:var(--text);border-color:var(--color-rule-focus);
+    box-shadow:inset 3px 0 0 0 var(--accent);font-weight:600;
+  }
+  .loc-item.active::before{background:var(--accent);}
   .loc-item.hidden,.zone-group.hidden{display:none;}
+
+  .loc-left{display:flex;align-items:center;gap:7px;min-width:0;flex:1;}
+  .loc-nama{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;}
+  .loc-right{display:flex;align-items:center;gap:5px;flex-shrink:0;}
+
+  /* Phosphor Telemetry Indicator Dot */
+  .loc-item .status-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;position:relative;}
+  .loc-item .status-dot.s-ok{background:var(--ok);box-shadow:0 0 0 1.5px rgba(63,185,80,0.25);}
+  .loc-item .status-dot.s-warn{background:var(--warn);box-shadow:0 0 0 1.5px rgba(210,153,34,0.25);}
+  .loc-item .status-dot.s-alert{background:var(--alert);box-shadow:0 0 0 1.5px rgba(248,81,73,0.3);}
+  .loc-item .status-dot.s-idle{background:var(--idle);}
+
+  .loc-tag{
+    font-family:var(--mono);font-size:9.5px;font-weight:600;padding:1px 4px;border-radius:3px;
+    font-variant-numeric:tabular-nums;line-height:1.2;
+  }
+  .loc-tag.t-alert{background:rgba(248,81,73,0.15);color:var(--alert);border:1px solid rgba(248,81,73,0.3);}
+  .loc-tag.t-warn{background:rgba(210,153,34,0.15);color:var(--warn);border:1px solid rgba(210,153,34,0.3);}
+  .loc-dev-count{font-family:var(--mono);font-size:10px;color:var(--color-ink-3);font-variant-numeric:tabular-nums;}
+
+  /* Telemetry Footer Rail */
+  .sidebar-telemetry-footer{
+    padding:10px 14px;border-top:1px solid var(--border);background:var(--panel);
+    flex-shrink:0;font-family:var(--mono);
+  }
+  .st-foot-status{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;}
+  .st-foot-indicator{width:6px;height:6px;border-radius:50%;background:var(--ok);display:inline-block;margin-right:6px;}
+  .st-foot-label{font-size:10px;font-weight:600;letter-spacing:0.05em;color:var(--color-ink-3);}
+  .st-foot-pct{font-size:11px;font-weight:700;color:var(--ok);font-variant-numeric:tabular-nums;}
+  .st-foot-metrics{display:flex;align-items:center;justify-content:space-between;font-size:10px;color:var(--color-ink-3);}
+  .st-foot-m b{color:var(--text);font-variant-numeric:tabular-nums;}
 
   /* MAIN */
   main{flex:1;min-width:0;display:flex;flex-direction:column;position:relative;}
@@ -658,15 +747,54 @@
   <div class="layout">
     <div id="mobile-overlay"></div>
     <aside id="sidebar">
-      <div class="search-box" style="display:flex;align-items:center;gap:8px;">
-        <input type="search" id="search-input" name="q" placeholder="Cari gedung / ruang..." autocomplete="off" spellcheck="false" style="flex:1">
-        <button id="sidebar-close-btn" class="icon-btn mobile-only-btn" title="Tutup Menu" style="display:none;min-width:38px;min-height:38px;flex-shrink:0;">✕</button>
+      <!-- ── SIDEBAR TOP RAIL ── -->
+      <div class="sidebar-top">
+        <div class="sidebar-top-meta">
+          <span class="st-index-tag">SYS // NAV</span>
+          <span class="st-index-title">AREA INDEX</span>
+        </div>
+        <div class="sidebar-top-tools">
+          <button class="st-tool-btn admin-only" title="Kelola Kategori / Area Gedung" onclick="openZonesModal()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            <span>CONFIG</span>
+          </button>
+          <button id="sidebar-close-btn" class="icon-btn mobile-only-btn" title="Tutup Menu" style="display:none;min-width:32px;min-height:32px;flex-shrink:0;">✕</button>
+        </div>
       </div>
-      <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 16px 4px; border-bottom:1px solid rgba(255,255,255,0.05)">
-        <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.8px">Kategori Area Gedung</span>
-        <button class="icon-btn admin-only" title="Kelola Kategori / Area Gedung" onclick="openZonesModal()" style="font-size:12px; padding:2px 6px; background:rgba(255,255,255,0.05)">⚙️ Edit</button>
+
+      <!-- ── SEARCH BAR ── -->
+      <div class="search-box">
+        <div class="search-input-shell">
+          <span class="search-icon-symbol" aria-hidden="true">⌕</span>
+          <input type="search" id="search-input" name="q" placeholder="Cari gedung / ruang..." autocomplete="off" spellcheck="false">
+          <kbd class="search-kbd-hint" id="search-kbd-hint" title="Tekan / untuk mencari">/</kbd>
+        </div>
       </div>
-      <div class="zone-list" id="zone-list"></div>
+
+      <!-- ── QUICK FILTER CHIPS ── -->
+      <div class="sidebar-quick-filters" id="sidebar-quick-filters">
+        <button class="sqf-chip active" data-filter="all" type="button">ALL</button>
+        <button class="sqf-chip" data-filter="issues" type="button">⚠️ ISSUES</button>
+        <button class="sqf-chip" data-filter="offline" type="button">OFFLINE</button>
+      </div>
+
+      <!-- ── ZONE LIST (INDEX RAIL) ── -->
+      <div class="zone-list" id="zone-list" role="tree" aria-label="Index Area Gedung"></div>
+
+      <!-- ── TELEMETRY FOOTER RAIL ── -->
+      <div class="sidebar-telemetry-footer" id="sidebar-telemetry-footer">
+        <div class="st-foot-status">
+          <div style="display:flex;align-items:center;">
+            <span class="st-foot-indicator" id="st-foot-indicator"></span>
+            <span class="st-foot-label">SYSTEM HEALTH</span>
+          </div>
+          <span class="st-foot-pct" id="st-foot-pct">100%</span>
+        </div>
+        <div class="st-foot-metrics">
+          <span class="st-foot-m">NODES: <b id="st-foot-nodes">0</b></span>
+          <span class="st-foot-m">ALERTS: <b id="st-foot-alerts">0</b></span>
+        </div>
+      </div>
     </aside>
     <main>
       <div class="tabs">

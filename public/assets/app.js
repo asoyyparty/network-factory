@@ -458,9 +458,12 @@ function renderStats() {
     <div class="stat-chip"><span class="dot" style="background:var(--warn)"></span>Maint. <b>${maint}</b></div>
     <div class="ws-indicator"><span class="ws-dot" id="ws-dot"></span><span id="ws-label">Menghubungkan...</span></div>
   `;
+  updateSidebarFooterTelemetry();
 }
 
-/* ── 10. SIDEBAR ───────────────────────────────────────────────────── */
+/* ── 10. SIDEBAR (Hallmark Telemetry Index-Rail) ───────────────────── */
+let currentSidebarFilter = 'all';
+
 function locationsByZone(z){ return state.locations.filter(l=>l.zone===z); }
 function deviceCount(id){ return (state.devices[id]||[]).length; }
 function locationAggregateStatus(id){
@@ -477,57 +480,212 @@ function renderSidebar(){
   const container = $('#zone-list');
   if (!container) return;
   container.innerHTML='';
+
+  let zoneIdx = 0;
   ZONES.forEach(zone=>{
     const locs = locationsByZone(zone.key);
     if (!locs.length) return;
+    zoneIdx++;
     const totalDev = locs.reduce((s,l)=>s+deviceCount(l.id),0);
+    const idxTag = String(zoneIdx).padStart(2, '0');
+
     const group = document.createElement('div');
     group.className = 'zone-group';
     group.dataset.zone = zone.key;
     group.innerHTML = `
-      <div class="zone-head" tabindex="0" role="button">
-        <span class="zname"><span class="chevron">▶</span> ${zone.label}</span>
+      <div class="zone-head" tabindex="0" role="button" aria-expanded="false">
+        <span class="zname">
+          <span class="chevron">▶</span>
+          <span class="zone-idx">[${idxTag}]</span>
+          <span>${zone.label}</span>
+        </span>
         <span class="zcount">${locs.length} lok · ${totalDev} dev</span>
       </div>
-      <div class="zone-items"></div>
+      <div class="zone-items" role="group"></div>
     `;
+
     const wrap = $('.zone-items', group);
     locs.forEach(loc=>{
+      const devs = state.devices[loc.id]||[];
+      const agg = locationAggregateStatus(loc.id);
+      const offDevs = devs.filter(d=>d.status==='Offline');
+      const warnDevs = devs.filter(d=>d.status==='Maintenance');
+
+      let tagHtml = '';
+      if (offDevs.length > 0) {
+        tagHtml = `<span class="loc-tag t-alert">! ${offDevs.length} OFF</span>`;
+      } else if (warnDevs.length > 0) {
+        tagHtml = `<span class="loc-tag t-warn">▲ ${warnDevs.length} WARN</span>`;
+      }
+
       const item = document.createElement('div');
       item.className = 'loc-item';
       item.dataset.locId = loc.id;
-      const agg = locationAggregateStatus(loc.id);
-      item.innerHTML = `<span class="status-dot" style="background:${AGG_COLOR[agg]}"></span><span>${loc.nama}</span>`;
+      item.dataset.status = agg;
+      item.setAttribute('role', 'treeitem');
+      item.setAttribute('tabindex', '0');
+
+      item.innerHTML = `
+        <div class="loc-left">
+          <span class="status-dot s-${agg}"></span>
+          <span class="loc-nama" title="${escapeHtml(loc.nama)}">${escapeHtml(loc.nama)}</span>
+        </div>
+        <div class="loc-right">
+          ${tagHtml}
+          <span class="loc-dev-count">[ ${devs.length} ]</span>
+        </div>
+      `;
+
       item.addEventListener('click', ()=>openDetail(loc.id));
+      item.addEventListener('keydown', e=>{
+        if(e.key==='Enter'||e.key===' '){
+          e.preventDefault();
+          openDetail(loc.id);
+        }
+      });
       wrap.appendChild(item);
     });
+
     const head = $('.zone-head', group);
-    head.addEventListener('click', ()=>group.classList.toggle('open'));
-    head.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); group.classList.toggle('open'); }});
+    head.addEventListener('click', ()=>{
+      const isOpen = group.classList.toggle('open');
+      head.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+    head.addEventListener('keydown', e=>{
+      if(e.key==='Enter'||e.key===' '){
+        e.preventDefault();
+        const isOpen = group.classList.toggle('open');
+        head.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+      }
+    });
+
     container.appendChild(group);
   });
+
   highlightActiveLoc();
+  applySidebarFilter();
+  updateSidebarFooterTelemetry();
+}
+
+function updateSidebarFooterTelemetry(){
+  let totalDevs = 0;
+  let offlineDevs = 0;
+  let warnDevs = 0;
+
+  Object.values(state.devices||{}).forEach(devArr=>{
+    (devArr||[]).forEach(d=>{
+      totalDevs++;
+      if(d.status==='Offline') offlineDevs++;
+      else if(d.status==='Maintenance') warnDevs++;
+    });
+  });
+
+  const onlineDevs = Math.max(0, totalDevs - offlineDevs - warnDevs);
+  const healthPct = totalDevs > 0 ? Math.round((onlineDevs / totalDevs) * 100) : 100;
+
+  const pctEl = $('#st-foot-pct');
+  const nodesEl = $('#st-foot-nodes');
+  const alertsEl = $('#st-foot-alerts');
+  const indEl = $('#st-foot-indicator');
+
+  if(pctEl) pctEl.textContent = healthPct + '%';
+  if(nodesEl) nodesEl.textContent = totalDevs;
+  if(alertsEl) alertsEl.textContent = offlineDevs;
+
+  if(indEl){
+    if(offlineDevs > 0){
+      indEl.style.background = 'var(--alert)';
+      if(pctEl) pctEl.style.color = 'var(--alert)';
+    } else if(warnDevs > 0){
+      indEl.style.background = 'var(--warn)';
+      if(pctEl) pctEl.style.color = 'var(--warn)';
+    } else {
+      indEl.style.background = 'var(--ok)';
+      if(pctEl) pctEl.style.color = 'var(--ok)';
+    }
+  }
+}
+
+function applySidebarFilter(){
+  const searchInput = $('#search-input');
+  const q = searchInput ? searchInput.value.trim().toLowerCase() : '';
+
+  $$('.zone-group').forEach(g=>{
+    let anyVisible = false;
+    $$('.loc-item', g).forEach(item=>{
+      const name = item.textContent.toLowerCase();
+      const status = item.dataset.status || 'idle';
+
+      const matchSearch = !q || name.includes(q);
+      let matchFilter = true;
+      if(currentSidebarFilter === 'issues'){
+        matchFilter = (status === 'alert' || status === 'warn');
+      } else if(currentSidebarFilter === 'offline'){
+        matchFilter = (status === 'alert');
+      }
+
+      const visible = matchSearch && matchFilter;
+      item.classList.toggle('hidden', !visible);
+      if(visible) anyVisible = true;
+    });
+
+    g.classList.toggle('hidden', !anyVisible);
+    if((q || currentSidebarFilter !== 'all') && anyVisible){
+      g.classList.add('open');
+      const h = $('.zone-head', g);
+      if(h) h.setAttribute('aria-expanded', 'true');
+    }
+  });
+
+  renderGridDashboard();
 }
 
 function highlightActiveLoc(){
   $$('.loc-item').forEach(el=>el.classList.toggle('active', el.dataset.locId===currentLocId));
 }
 
-$('#search-input').addEventListener('input', e=>{
-  const q = e.target.value.trim().toLowerCase();
-  $$('.zone-group').forEach(g=>{
-    let any=false;
-    $$('.loc-item',g).forEach(item=>{
-      const m = item.textContent.toLowerCase().includes(q);
-      item.classList.toggle('hidden',!m);
-      if(m) any=true;
+// Search input and quick filters setup
+(function initSidebarEvents(){
+  const si = $('#search-input');
+  if(si){
+    si.addEventListener('input', ()=>applySidebarFilter());
+  }
+
+  // Quick filter chips click handler
+  $$('.sqf-chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      $$('.sqf-chip').forEach(c=>c.classList.remove('active'));
+      chip.classList.add('active');
+      currentSidebarFilter = chip.dataset.filter || 'all';
+      applySidebarFilter();
     });
-    g.classList.toggle('hidden',!any);
-    if(q&&any) g.classList.add('open');
-    if(!q) g.classList.remove('open');
   });
-  renderGridDashboard();
-});
+
+  // Global hotkey '/' to focus search & 'Escape' to clear
+  window.addEventListener('keydown', e=>{
+    const activeEl = document.activeElement;
+    const isEditing = activeEl && (
+      activeEl.tagName === 'INPUT' || 
+      activeEl.tagName === 'TEXTAREA' || 
+      activeEl.tagName === 'SELECT' || 
+      activeEl.isContentEditable
+    );
+
+    if(e.key === '/' && !isEditing){
+      e.preventDefault();
+      const s = $('#search-input');
+      if(s){
+        s.focus();
+        s.select();
+      }
+    } else if(e.key === 'Escape' && activeEl === $('#search-input')){
+      e.preventDefault();
+      activeEl.value = '';
+      activeEl.blur();
+      applySidebarFilter();
+    }
+  });
+})();
 
 /* ── 10.5 MODEL 1 DASHBOARD GRID VIEW ──────────────────────────────── */
 function renderGridDashboard() {
@@ -2793,7 +2951,7 @@ if (mobileMenuBtn && mobileOverlay && sidebar) {
   });
 
   sidebar.addEventListener('click', (e) => {
-    if (e.target.closest('.zone-item') && window.innerWidth <= 768) {
+    if (e.target.closest('.loc-item, .zone-item') && window.innerWidth <= 768) {
       sidebar.classList.remove('mobile-open');
       mobileOverlay.classList.remove('show');
     }
