@@ -2798,6 +2798,14 @@ if (mobileMenuBtn && mobileOverlay && sidebar) {
       mobileOverlay.classList.remove('show');
     }
   });
+
+  const sidebarCloseBtn = $('#sidebar-close-btn');
+  if (sidebarCloseBtn) {
+    sidebarCloseBtn.addEventListener('click', () => {
+      sidebar.classList.remove('mobile-open');
+      mobileOverlay.classList.remove('show');
+    });
+  }
 }
 
 /* ── MANAGE TOPOLOGY ── */
