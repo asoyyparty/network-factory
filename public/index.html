@@ -1374,6 +1374,28 @@
   </div>
 </div>
 
+<!-- ── MODAL: Pindahkan Perangkat (Hallmark Industrial Reassignment Workbench) ── -->
+<div class="modal-overlay" id="move-devices-modal" data-modal="movedevices">
+  <div class="modal zh-move-modal" style="max-width:560px; width:95%">
+    <div class="zh-move-header">
+      <div class="zh-move-title-wrap">
+        <div class="zh-move-badge">MANAGEMENT // ASSET REASSIGNMENT</div>
+        <h3 class="zh-move-title">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/>
+          </svg>
+          <span>Pindahkan Perangkat</span>
+        </h3>
+      </div>
+      <button class="modal-close zh-move-close" onclick="closeMoveDevicesModal()" title="Tutup">✕</button>
+    </div>
+
+    <div class="zh-move-body" id="move-devices-body">
+      <!-- Content populated dynamically by renderMoveDevicesModal() -->
+    </div>
+  </div>
+</div>
+
 <!-- ── MODAL: Disconnect / Kick Device ── -->
 <div class="modal-overlay" id="kick-modal" data-modal="kick">
   <div class="modal" style="max-width:480px; width:95%">

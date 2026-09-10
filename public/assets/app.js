@@ -378,10 +378,11 @@ async function loadDevices() {
 
 async function apiSaveDevice(locId, payload) {
   let res;
+  const fullPayload = { loc_id: locId, ...payload };
   if (editingDeviceId) {
-    res = await api.put(`/api/devices/${editingDeviceId}`, payload);
+    res = await api.put(`/api/devices/${editingDeviceId}`, fullPayload);
   } else {
-    res = await api.post('/api/devices', { loc_id: locId, ...payload });
+    res = await api.post('/api/devices', fullPayload);
   }
   if (!res || !res.ok) {
     const err = await res.json();
@@ -2186,6 +2187,10 @@ function renderDetail(){
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
               </button>` : ''}
             ${isAdmin ? `
+              <button class="icon-btn" title="Pindah ke Lokasi Lain" onclick="openMoveModalForDevice('${d.id}')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+              </button>` : ''}
+            ${isAdmin ? `
               <button class="icon-btn" title="Ubah Perangkat" onclick="editDevice('${d.id}')">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
               </button>` : ''}
@@ -2255,6 +2260,10 @@ function renderDetail(){
           <button class="icon-btn" title="Riwayat Latensi" onclick="openHistoryModal('${d.id}')">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 3v18h18"></path><path d="M18 9l-5 5-4-4-3 3"></path></svg>
           </button>
+          ${isAdmin ? `
+            <button class="icon-btn" title="Pindah ke Lokasi Lain" onclick="openMoveModalForDevice('${d.id}')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+            </button>` : ''}
           ${isAdmin ? `
             <button class="icon-btn" title="Ubah Data" onclick="editDevice('${d.id}')">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
@@ -2387,6 +2396,49 @@ function renderDetail(){
   `;
 }
 
+/* ── 13B. LOCATION OPTIONS HELPER ─────────────────────────────────── */
+function getLocationOptionsHtml(selectedLocId, excludeLocId = null) {
+  const locList = (allLocations && allLocations.length > 0) ? allLocations : (state.locations || []);
+  const zones = (ZONES && ZONES.length > 0) ? ZONES : [];
+
+  let html = '';
+  const zoneGroups = {};
+  locList.forEach(l => {
+    if (excludeLocId && String(l.id) === String(excludeLocId)) return;
+    const zk = l.zone || 'OTHER';
+    if (!zoneGroups[zk]) zoneGroups[zk] = [];
+    zoneGroups[zk].push(l);
+  });
+
+  zones.forEach(z => {
+    const items = zoneGroups[z.key];
+    if (items && items.length > 0) {
+      html += `<optgroup label="[${z.key}] ${escapeHtml(z.label)}">`;
+      items.forEach(l => {
+        const isSel = String(l.id) === String(selectedLocId) ? 'selected' : '';
+        const devCnt = l.device_count !== undefined ? l.device_count : deviceCount(l.id);
+        html += `<option value="${l.id}" ${isSel}>${escapeHtml(l.nama)} (${devCnt} unit)</option>`;
+      });
+      html += `</optgroup>`;
+      delete zoneGroups[z.key];
+    }
+  });
+
+  for (const [zk, items] of Object.entries(zoneGroups)) {
+    if (items && items.length > 0) {
+      html += `<optgroup label="[${zk}] Area Lainnya">`;
+      items.forEach(l => {
+        const isSel = String(l.id) === String(selectedLocId) ? 'selected' : '';
+        const devCnt = l.device_count !== undefined ? l.device_count : deviceCount(l.id);
+        html += `<option value="${l.id}" ${isSel}>${escapeHtml(l.nama)} (${devCnt} unit)</option>`;
+      });
+      html += `</optgroup>`;
+    }
+  }
+
+  return html;
+}
+
 /* ── 14. DEVICE FORM ───────────────────────────────────────────────── */
 function openDeviceForm(deviceId){
   editingDeviceId = deviceId||null;
@@ -2395,7 +2447,19 @@ function openDeviceForm(deviceId){
   const title = $('#device-modal-title');
   if(!modal || !body || !title) return;
 
-  const d = deviceId ? (state.devices[currentLocId]||[]).find(x=>x.id===deviceId) : null;
+  let d = null;
+  let devLocId = currentLocId;
+  if (deviceId) {
+    for (const [lid, list] of Object.entries(state.devices || {})) {
+      const found = (list || []).find(x => x.id === deviceId);
+      if (found) {
+        d = found;
+        devLocId = d.loc_id || lid;
+        break;
+      }
+    }
+  }
+
   const osOptions = state.deviceOs.map(o=>`<option value="${o.id}"${d&&d.device_os===o.id?' selected':''}>${o.name}</option>`).join('');
   const isAdmin = currentUser && currentUser.role==='admin';
 
@@ -2404,6 +2468,10 @@ function openDeviceForm(deviceId){
   body.innerHTML=`
     <div class="form-grid">
       <div class="field"><label>Nama Perangkat</label><input id="f-nama" placeholder="cth. Switch Lantai 1" value="${escapeHtml(d?d.nama:'')}"></div>
+      <div class="field">
+        <label>Lokasi / Ruangan</label>
+        <select id="f-loc-id" class="zh-select" style="width:100%;height:38px">${getLocationOptionsHtml(devLocId)}</select>
+      </div>
       <div class="field">
         <label>Tipe</label>
         <div style="display:flex;gap:6px">
@@ -2648,8 +2716,11 @@ async function deleteOption(key) {
 async function submitDeviceForm(){
   const nama = $('#f-nama').value.trim();
   if(!nama){ showToast('Nama perangkat wajib diisi','error'); $('#f-nama').focus(); return; }
+  const targetLocId = ($('#f-loc-id') && $('#f-loc-id').value) || currentLocId;
+
   const payload = {
     nama,
+    loc_id    : targetLocId,
     tipe      : $('#f-tipe').value,
     merk      : $('#f-merk').value.trim(),
     ip        : $('#f-ip').value.trim(),
@@ -2661,20 +2732,46 @@ async function submitDeviceForm(){
     ssh_port  : parseInt(($('#f-ssh-port')||{}).value)||22,
     device_os : ($('#f-device-os')||{}).value||'generic'
   };
+
   try {
-    const device = await apiSaveDevice(currentLocId, payload);
-    if(!state.devices[currentLocId]) state.devices[currentLocId]=[];
-    if(editingDeviceId){
-      const idx=state.devices[currentLocId].findIndex(d=>d.id===editingDeviceId);
-      if(idx>-1) state.devices[currentLocId][idx]=device;
-    } else {
-      state.devices[currentLocId].push(device);
+    let oldLocId = targetLocId;
+    if (editingDeviceId) {
+      for (const [lid, list] of Object.entries(state.devices || {})) {
+        if ((list || []).some(d => d.id === editingDeviceId)) {
+          oldLocId = lid;
+          break;
+        }
+      }
     }
-    editingDeviceId=null;
+
+    const device = await apiSaveDevice(targetLocId, payload);
+
+    if (editingDeviceId && oldLocId !== targetLocId) {
+      if (state.devices[oldLocId]) {
+        state.devices[oldLocId] = state.devices[oldLocId].filter(d => d.id !== editingDeviceId);
+      }
+      if (!state.devices[targetLocId]) state.devices[targetLocId] = [];
+      state.devices[targetLocId].push(device);
+    } else {
+      if (!state.devices[targetLocId]) state.devices[targetLocId] = [];
+      if (editingDeviceId) {
+        const idx = state.devices[targetLocId].findIndex(d => d.id === editingDeviceId);
+        if (idx > -1) state.devices[targetLocId][idx] = device;
+        else state.devices[targetLocId].push(device);
+      } else {
+        state.devices[targetLocId].push(device);
+      }
+    }
+
+    const wasMoved = editingDeviceId && (oldLocId !== targetLocId);
+    editingDeviceId = null;
     closeDeviceForm();
+    await loadDevices();
+    await loadSubCategories();
+    updateZonesModalStats();
     refreshActiveView();
     renderSidebar(); renderStats(); renderTopology();
-    showToast('Data perangkat tersimpan','ok');
+    showToast(wasMoved ? `Perangkat dipindahkan ke lokasi baru` : 'Data perangkat tersimpan', 'ok');
   } catch(err){
     showToast('Error: '+err.message,'error');
   }
@@ -5050,6 +5147,12 @@ async function renderSubCategoriesTable() {
           <td style="text-align:right">
             <div style="display:flex; justify-content:flex-end; gap:6px">
               ${isAdmin ? `
+                ${devCount > 0 ? `
+                  <button class="action-btn-pill move zh-tbl-btn" onclick="openMoveModalForLocation('${l.id}')" title="Pindahkan ${devCount} perangkat ke ruangan lain">
+                    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+                    <span>Pindah (${devCount})</span>
+                  </button>
+                ` : ''}
                 <button class="action-btn-pill edit zh-tbl-btn" onclick="editSubCat('${l.id}')">
                   <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                   <span>Edit</span>
@@ -5084,6 +5187,12 @@ async function renderSubCategoriesTable() {
           <div class="zh-card-title">${escapeHtml(l.nama)}</div>
           ${isAdmin ? `
             <div class="zh-card-actions">
+              ${devCount > 0 ? `
+                <button class="action-btn-pill move zh-card-btn" onclick="openMoveModalForLocation('${l.id}')">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+                  <span>Pindahkan (${devCount})</span>
+                </button>
+              ` : ''}
               <button class="action-btn-pill edit zh-card-btn" onclick="editSubCat('${l.id}')">
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 <span>Edit Ruangan</span>
@@ -5175,7 +5284,9 @@ async function deleteSubCat(id) {
   if (devCount > 0) {
     const relatedDevs = Array.isArray(allDevices) ? allDevices.filter(d => String(d.loc_id) === String(id)).map(d => d.nama || d.ip) : [];
     const devListStr = relatedDevs.length > 0 ? ` (${relatedDevs.slice(0, 3).join(', ')}${relatedDevs.length > 3 ? '...' : ''})` : '';
-    showToast(`Tidak dapat menghapus "${locName}" karena masih digunakan oleh ${devCount} perangkat aktif${devListStr}. Pindahkan atau hapus perangkat terlebih dahulu.`, 'warning');
+    if (confirm(`Ruangan "${locName}" tidak dapat dihapus karena masih digunakan oleh ${devCount} perangkat aktif${devListStr}.\n\nApakah Anda ingin memindahkan perangkat-perangkat ini ke ruangan lain sekarang?`)) {
+      openMoveModalForLocation(id);
+    }
     return;
   }
 
@@ -5196,6 +5307,235 @@ async function deleteSubCat(id) {
     renderTopology();
   } catch (err) {
     showToast(err.message, 'error');
+  }
+}
+
+/* ── 20D. MOVE DEVICES WORKBENCH (HALLMARK INDUSTRIAL REASSIGNMENT) ─── */
+let moveModalSourceLocId = null;
+let moveModalDevices = [];
+
+async function openMoveModalForLocation(sourceLocId) {
+  moveModalSourceLocId = sourceLocId;
+  const modal = $('#move-devices-modal');
+  const body = $('#move-devices-body');
+  if (!modal || !body) return;
+
+  const loc = (allLocations || []).find(l => String(l.id) === String(sourceLocId)) || { id: sourceLocId, nama: 'Ruangan' };
+  
+  body.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted); font-family:var(--mono); font-size:12px">Memuat daftar perangkat...</div>';
+  modal.classList.add('open');
+
+  try {
+    const res = await api.get(`/api/devices/loc/${sourceLocId}`);
+    if (!res || !res.ok) throw new Error('Gagal mengambil daftar perangkat ruangan');
+    const data = await res.json();
+    moveModalDevices = data.devices || [];
+
+    if (moveModalDevices.length === 0) {
+      body.innerHTML = `
+        <div class="zh-move-source-banner">
+          <span class="zh-move-source-title">Ruangan Asal</span>
+          <span class="zh-move-source-val">${escapeHtml(loc.nama)}</span>
+        </div>
+        <div style="text-align:center; padding:24px; color:var(--text-muted); font-size:13px">
+          Tidak ada perangkat yang terdaftar di ruangan ini.
+        </div>
+        <div class="zh-move-actions">
+          <button class="btn-secondary zh-move-btn-cancel" onclick="closeMoveDevicesModal()">Tutup</button>
+        </div>
+      `;
+      return;
+    }
+
+    renderMoveDevicesModal(loc, moveModalDevices);
+  } catch (err) {
+    body.innerHTML = `<div style="color:var(--alert); padding:20px; text-align:center">Error: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function openMoveModalForDevice(deviceId) {
+  let foundDevice = null;
+  let sourceLocId = currentLocId;
+
+  for (const [lid, list] of Object.entries(state.devices || {})) {
+    const d = (list || []).find(x => x.id === deviceId);
+    if (d) {
+      foundDevice = d;
+      sourceLocId = d.loc_id || lid;
+      break;
+    }
+  }
+
+  if (!foundDevice) {
+    showToast('Perangkat tidak ditemukan', 'error');
+    return;
+  }
+
+  moveModalSourceLocId = sourceLocId;
+  moveModalDevices = [foundDevice];
+
+  const modal = $('#move-devices-modal');
+  if (!modal) return;
+
+  const loc = (allLocations || []).find(l => String(l.id) === String(sourceLocId)) || { id: sourceLocId, nama: 'Ruangan Terkait' };
+  renderMoveDevicesModal(loc, [foundDevice], deviceId);
+  modal.classList.add('open');
+}
+
+function closeMoveDevicesModal() {
+  const modal = $('#move-devices-modal');
+  if (modal) modal.classList.remove('open');
+  moveModalSourceLocId = null;
+  moveModalDevices = [];
+}
+
+function renderMoveDevicesModal(sourceLoc, devices, preselectedDeviceId = null) {
+  const body = $('#move-devices-body');
+  if (!body) return;
+
+  const targetOptions = getLocationOptionsHtml(null, sourceLoc.id);
+
+  const deviceItemsHtml = devices.map(d => {
+    const checked = (!preselectedDeviceId || d.id === preselectedDeviceId) ? 'checked' : '';
+    const statusDotColor = d.status === 'Online' ? '#22c55e' : (d.status === 'Offline' ? '#ef4444' : '#94a3b8');
+    return `
+      <label class="zh-move-dev-item">
+        <input type="checkbox" class="zh-move-chk" value="${d.id}" ${checked} onchange="onMoveDeviceCheckChange()">
+        <div class="zh-move-dev-info">
+          <span class="zh-move-dev-name">${escapeHtml(d.nama)}</span>
+          <div class="zh-move-dev-meta">
+            <span class="tc-tier-tag dist">${escapeHtml(d.tipe || 'DEV')}</span>
+            <span>${escapeHtml(d.ip || 'No-IP')}</span>
+            <span style="width:7px; height:7px; border-radius:50%; background:${statusDotColor}; display:inline-block"></span>
+          </div>
+        </div>
+      </label>
+    `;
+  }).join('');
+
+  body.innerHTML = `
+    <div class="zh-move-source-banner">
+      <div>
+        <div class="zh-move-source-title">Ruangan Asal (Source)</div>
+        <div class="zh-move-source-val">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>
+          <span>${escapeHtml(sourceLoc.nama)}</span>
+        </div>
+      </div>
+      <span class="zh-count-pill has-items">${devices.length} Perangkat</span>
+    </div>
+
+    <div class="zh-move-dev-list-wrap">
+      <div class="zh-move-dev-header">
+        <span>PILIH PERANGKAT (${devices.length})</span>
+        <div style="display:flex; gap:10px">
+          <button type="button" class="btn-link" onclick="toggleAllMoveDevices(true)" style="font-size:10.5px; color:#c084fc; background:none; border:none; cursor:pointer">Pilih Semua</button>
+          <button type="button" class="btn-link" onclick="toggleAllMoveDevices(false)" style="font-size:10.5px; color:var(--text-muted); background:none; border:none; cursor:pointer">Batal Semua</button>
+        </div>
+      </div>
+      <div class="zh-move-dev-scroll">
+        ${deviceItemsHtml}
+      </div>
+    </div>
+
+    <div class="zh-move-target-group">
+      <label class="zh-move-target-label" for="move-target-loc">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        <span>Pindahkan ke Ruangan Tujuan (Destination):</span>
+      </label>
+      <select id="move-target-loc" class="zh-move-select">
+        <option value="">-- Pilih Ruangan / Sub-Kategori Tujuan --</option>
+        ${targetOptions}
+      </select>
+    </div>
+
+    <div class="zh-move-actions">
+      <button class="btn-secondary zh-move-btn-cancel" onclick="closeMoveDevicesModal()">Batal</button>
+      <div style="display:flex; align-items:center; gap:10px">
+        <span class="zh-move-count-indicator" id="move-selected-indicator">
+          <strong id="move-selected-count">${devices.length}</strong> perangkat terpilih
+        </span>
+        <button class="zh-move-btn-exec" id="btn-exec-move" onclick="executeMoveDevices()">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+          <span>Pindahkan Sekarang</span>
+        </button>
+      </div>
+    </div>
+  `;
+
+  onMoveDeviceCheckChange();
+}
+
+function toggleAllMoveDevices(checkAll) {
+  const chks = document.querySelectorAll('.zh-move-chk');
+  chks.forEach(c => c.checked = checkAll);
+  onMoveDeviceCheckChange();
+}
+
+function onMoveDeviceCheckChange() {
+  const chks = document.querySelectorAll('.zh-move-chk:checked');
+  const countEl = $('#move-selected-count');
+  const btn = $('#btn-exec-move');
+  if (countEl) countEl.textContent = chks.length;
+  if (btn) btn.disabled = (chks.length === 0);
+}
+
+async function executeMoveDevices() {
+  const targetSelect = $('#move-target-loc');
+  const targetLocId = targetSelect ? targetSelect.value : '';
+  if (!targetLocId) {
+    showToast('Harap pilih ruangan tujuan terlebih dahulu', 'warning');
+    if (targetSelect) targetSelect.focus();
+    return;
+  }
+
+  const chks = document.querySelectorAll('.zh-move-chk:checked');
+  const deviceIds = Array.from(chks).map(c => c.value);
+  if (deviceIds.length === 0) {
+    showToast('Pilih minimal 1 perangkat untuk dipindahkan', 'warning');
+    return;
+  }
+
+  const btn = $('#btn-exec-move');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span>Memindahkan...</span>';
+  }
+
+  try {
+    const res = await api.post('/api/devices/move', {
+      device_ids: deviceIds,
+      target_loc_id: targetLocId
+    });
+
+    if (!res || !res.ok) {
+      const err = res ? await res.json() : {};
+      throw new Error(err.error || 'Gagal memindahkan perangkat');
+    }
+
+    const data = await res.json();
+    const targetLocName = data.target_loc ? data.target_loc.nama : 'ruangan tujuan';
+
+    showToast(`Berhasil memindahkan ${data.moved_count} perangkat ke "${targetLocName}"!`, 'success');
+    closeMoveDevicesModal();
+
+    await loadDevices();
+    await loadSubCategories();
+    updateZonesModalStats();
+    renderSubCategoriesTable();
+    refreshActiveView();
+    renderSidebar();
+    renderStats();
+    renderTopology();
+  } catch (err) {
+    showToast(err.message, 'error');
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+        <span>Pindahkan Sekarang</span>
+      `;
+    }
   }
 }
 

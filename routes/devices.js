@@ -110,7 +110,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-/* ── PUT /api/devices/:id — edit device ─────────────────────── */
+/* ── PUT /api/devices/:id — edit device (termasuk ganti lokasi) ── */
 router.put('/:id', async (req, res) => {
   try {
     const [existingRows] = await db.execute('SELECT * FROM devices WHERE id = ?', [req.params.id]);
@@ -118,17 +118,35 @@ router.put('/:id', async (req, res) => {
     if (!existing) return res.status(404).json({ error: 'Device tidak ditemukan' });
 
     const {
-      nama, tipe, merk, ip, mac, status, catatan,
+      loc_id, nama, tipe, merk, ip, mac, status, catatan,
       ssh_user, ssh_pass, ssh_port, device_os
     } = req.body;
 
+    let targetLocId = existing.loc_id;
+    let locChanged = false;
+    let oldLocName = '';
+    let newLocName = '';
+
+    if (loc_id && loc_id !== existing.loc_id) {
+      const [lCheck] = await db.execute('SELECT id, nama FROM locations WHERE id = ?', [loc_id]);
+      if (lCheck.length === 0) {
+        return res.status(400).json({ error: 'Lokasi tujuan tidak valid atau tidak ditemukan' });
+      }
+      const [oldLocRows] = await db.execute('SELECT id, nama FROM locations WHERE id = ?', [existing.loc_id]);
+      oldLocName = oldLocRows[0] ? oldLocRows[0].nama : existing.loc_id;
+      newLocName = lCheck[0].nama;
+      targetLocId = loc_id;
+      locChanged = true;
+    }
+
     await db.execute(`
       UPDATE devices SET
-        nama=?, tipe=?, merk=?, ip=?, mac=?, status=?, catatan=?,
+        loc_id=?, nama=?, tipe=?, merk=?, ip=?, mac=?, status=?, catatan=?,
         ssh_user=?, ssh_pass=?, ssh_port=?, device_os=?,
         updated_at=NOW()
       WHERE id=?
     `, [
+      targetLocId,
       nama      ?? existing.nama,
       tipe      ?? existing.tipe,
       merk      ?? existing.merk,
@@ -143,6 +161,10 @@ router.put('/:id', async (req, res) => {
       req.params.id
     ]);
 
+    if (locChanged) {
+      await db.execute('UPDATE topology_nodes SET loc_id = ? WHERE id = ?', [targetLocId, req.params.id]).catch(() => {});
+    }
+
     const [updatedRows] = await db.execute(`
       SELECT id, loc_id, nama, tipe, merk, ip, mac, status,
              catatan, ssh_user, ssh_pass, ssh_port, device_os, last_seen, last_ping_ms
@@ -152,12 +174,80 @@ router.put('/:id', async (req, res) => {
     const device = updatedRows[0];
     
     // Audit Log
-    logAudit(req.user.username, 'Edit Device', device.nama, `IP: ${device.ip}, Updated by admin`);
+    const auditDetail = locChanged 
+      ? `IP: ${device.ip}, Dipindahkan dari [${oldLocName}] ke [${newLocName}]`
+      : `IP: ${device.ip}, Updated by admin`;
+    logAudit(req.user.username, locChanged ? 'Pindah Lokasi Perangkat' : 'Edit Device', device.nama, auditDetail);
 
     res.json({ device });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+  }
+});
+
+/* ── POST /api/devices/move — Pindahkan satu atau banyak perangkat ke lokasi baru ── */
+router.post('/move', async (req, res) => {
+  try {
+    const { device_ids, target_loc_id } = req.body;
+    if (!target_loc_id) {
+      return res.status(400).json({ error: 'Lokasi tujuan (target_loc_id) wajib dipilih' });
+    }
+    if (!Array.isArray(device_ids) || device_ids.length === 0) {
+      return res.status(400).json({ error: 'Daftar perangkat (device_ids) wajib dipilih minimal 1' });
+    }
+
+    // Validasi lokasi tujuan
+    const [targetRows] = await db.execute('SELECT id, nama, zone_key FROM locations WHERE id = ?', [target_loc_id]);
+    if (targetRows.length === 0) {
+      return res.status(404).json({ error: 'Lokasi tujuan tidak ditemukan' });
+    }
+    const targetLoc = targetRows[0];
+
+    // Ambil info perangkat yang akan dipindahkan
+    const placeholders = device_ids.map(() => '?').join(',');
+    const [devRows] = await db.execute(`
+      SELECT d.id, d.nama, d.loc_id, l.nama as old_loc_nama
+      FROM devices d
+      LEFT JOIN locations l ON d.loc_id = l.id
+      WHERE d.id IN (${placeholders})
+    `, device_ids);
+
+    if (devRows.length === 0) {
+      return res.status(404).json({ error: 'Tidak ada perangkat valid yang ditemukan untuk dipindahkan' });
+    }
+
+    // Update lokasi pada tabel devices
+    await db.execute(
+      `UPDATE devices SET loc_id = ?, updated_at = NOW() WHERE id IN (${placeholders})`,
+      [target_loc_id, ...device_ids]
+    );
+
+    // Update juga di topology_nodes bila ada keterkaitan id
+    await db.execute(
+      `UPDATE topology_nodes SET loc_id = ? WHERE id IN (${placeholders})`,
+      [target_loc_id, ...device_ids]
+    ).catch(() => {});
+
+    // Audit Log
+    const devNames = devRows.map(d => d.nama).join(', ');
+    const sourceNames = [...new Set(devRows.map(d => d.old_loc_nama || d.loc_id))].join(', ');
+    logAudit(
+      req.user.username,
+      'Pindah Perangkat',
+      `${devRows.length} perangkat`,
+      `Dari: [${sourceNames}] → Ke: [${targetLoc.nama}] (${devNames})`
+    );
+
+    res.json({
+      success: true,
+      moved_count: devRows.length,
+      target_loc: targetLoc,
+      device_ids: devRows.map(d => d.id)
+    });
+  } catch (err) {
+    console.error('[Move Devices Error]', err);
+    res.status(500).json({ error: 'Gagal memindahkan perangkat: ' + err.message });
   }
 });
 
