@@ -2955,8 +2955,33 @@ async function wakeDevice(deviceId) {
   }
 }
 
-/* ── 20. SLA REPORT VIEW ───────────────────────────────────────────── */
+/* ── 20. SLA REPORT VIEW (Hallmark Reliability Intelligence Workbench) ── */
 let currentSlaReport = [];
+let slaDays = 7;
+let slaComplianceFilter = 'all'; // 'all', 'met', 'warn', 'breach'
+let slaLocFilter = 'all';
+let slaSearchTerm = '';
+
+window.setSlaPeriod = function(days) {
+  slaDays = Number(days);
+  currentSlaReport = [];
+  renderReportView();
+};
+
+window.setSlaComplianceFilter = function(filter) {
+  slaComplianceFilter = filter;
+  renderReportView();
+};
+
+window.setSlaLocFilter = function(locId) {
+  slaLocFilter = locId;
+  renderReportView();
+};
+
+window.onSlaSearch = function(val) {
+  slaSearchTerm = (val || '').trim().toLowerCase();
+  renderReportView();
+};
 
 function renderLoadingState(msg = 'Memuat data...') {
   return `
@@ -2971,7 +2996,7 @@ function renderLoadingState(msg = 'Memuat data...') {
 function showBgLoadingIndicator(panel) {
   let badge = panel.querySelector('.bg-loading-badge');
   if (!badge) {
-    const titleArea = panel.querySelector('.sla-title-area') || panel.querySelector('.sla-header') || panel.querySelector('h2') || panel.firstElementChild;
+    const titleArea = panel.querySelector('.sla-title-area') || panel.querySelector('.sla-mission-head') || panel.firstElementChild;
     if (titleArea) {
       badge = document.createElement('span');
       badge.className = 'bg-loading-badge';
@@ -2991,68 +3016,318 @@ async function renderReportView() {
   const panel = $('#report-panel');
   if (!panel) return;
 
-  // Render full spinner ONLY on initial load when no data exists yet
   if (!currentSlaReport || currentSlaReport.length === 0) {
-    panel.innerHTML = renderLoadingState('Memuat Laporan Uptime SLA...');
+    panel.innerHTML = renderLoadingState(`Menghitung Ketersediaan SLA (${slaDays} Hari Terakhir)...`);
   } else {
     showBgLoadingIndicator(panel);
   }
 
   try {
-    const res = await api.get('/api/ping/sla-report?days=7');
+    const res = await api.get(`/api/ping/sla-report?days=${slaDays}`);
     const data = await res.json();
     currentSlaReport = data.report || [];
-    
-    let totalDevices = currentSlaReport.length;
-    let avgFactoryUptime = totalDevices ? currentSlaReport.reduce((a,b)=>a+b.uptime_percent,0) / totalDevices : 0;
-    
-    const rows = currentSlaReport.map(r => {
-      let color = r.uptime_percent >= 99 ? 'var(--ok)' : (r.uptime_percent >= 95 ? 'var(--warn)' : 'var(--alert)');
+
+    const totalDevices = currentSlaReport.length;
+    const avgFactoryUptimeNum = totalDevices ? (currentSlaReport.reduce((a, b) => a + Number(b.uptime_percent || 0), 0) / totalDevices) : 0;
+    const avgFactoryUptime = avgFactoryUptimeNum.toFixed(2);
+
+    // KPI breakdown
+    const metCount = currentSlaReport.filter(r => r.uptime_percent >= 99).length;
+    const warnCount = currentSlaReport.filter(r => r.uptime_percent >= 95 && r.uptime_percent < 99).length;
+    const breachCount = currentSlaReport.filter(r => r.uptime_percent < 95).length;
+    const totalDowntimeMin = currentSlaReport.reduce((a, b) => a + (Number(b.downtime_minutes) || 0), 0);
+    const avgLatNum = totalDevices ? (currentSlaReport.reduce((a, b) => a + (Number(b.avg_latency) || 0), 0) / totalDevices) : 0;
+    const avgLat = avgLatNum.toFixed(1);
+
+    // Unique Locations
+    const uniqueLocIds = Array.from(new Set(currentSlaReport.map(r => r.location).filter(Boolean)));
+    const uniqueLocs = uniqueLocIds.map(id => {
+      const l = state.locations.find(loc => loc.id === id);
+      return { id, nama: l ? l.nama : id };
+    });
+
+    // Filter data
+    let filtered = currentSlaReport;
+    if (slaComplianceFilter === 'met') {
+      filtered = filtered.filter(r => r.uptime_percent >= 99);
+    } else if (slaComplianceFilter === 'warn') {
+      filtered = filtered.filter(r => r.uptime_percent >= 95 && r.uptime_percent < 99);
+    } else if (slaComplianceFilter === 'breach') {
+      filtered = filtered.filter(r => r.uptime_percent < 95);
+    }
+
+    if (slaLocFilter !== 'all') {
+      filtered = filtered.filter(r => r.location === slaLocFilter);
+    }
+
+    if (slaSearchTerm) {
+      filtered = filtered.filter(r => {
+        const loc = state.locations.find(l => l.id === r.location);
+        const locName = loc ? loc.nama : r.location;
+        return (r.device_name || '').toLowerCase().includes(slaSearchTerm) ||
+               (locName || '').toLowerCase().includes(slaSearchTerm) ||
+               (r.ip_address || '').toLowerCase().includes(slaSearchTerm);
+      });
+    }
+
+    // Overall Factory Health Pill
+    const isOverallMet = avgFactoryUptimeNum >= 99;
+    const overallBadgeClass = isOverallMet ? 'ok' : (avgFactoryUptimeNum >= 95 ? 'warn' : 'alert');
+    const overallBadgeText = isOverallMet ? '● SLA FACTORY TERPENUHI (≥99%)' : '▲ SLA BERISIKO (<99%)';
+
+    // Desktop Table Rows
+    const tableRowsHtml = filtered.map(r => {
       const loc = state.locations.find(l => l.id === r.location);
       const locName = loc ? loc.nama : r.location;
+      const uptime = Number(r.uptime_percent || 0);
+
+      let tierClass = 'ok';
+      let tierLabel = 'TERPENUHI';
+      if (uptime < 95) {
+        tierClass = 'alert';
+        tierLabel = 'BREACH';
+      } else if (uptime < 99) {
+        tierClass = 'warn';
+        tierLabel = 'WARNING';
+      }
+
+      const color = tierClass === 'ok' ? 'var(--ok)' : (tierClass === 'warn' ? 'var(--warn)' : 'var(--alert)');
+      const latClass = r.avg_latency < 30 ? 'good' : (r.avg_latency < 100 ? 'warn' : 'bad');
+
       return `
-        <tr>
-          <td>${escapeHtml(r.device_name)}</td>
-          <td>${escapeHtml(locName)}</td>
-          <td>${escapeHtml(r.ip_address)}</td>
-          <td><b style="color:${color}">${r.uptime_percent}%</b></td>
-          <td>${r.downtime_minutes} menit</td>
-          <td>${r.avg_latency || 0} ms</td>
+        <tr class="${tierClass === 'alert' ? 'is-offline-row' : ''}">
+          <td>
+            <div class="dt-dev-name-wrap">
+              <span class="tcard-dev-dot ${tierClass === 'ok' ? 's-online' : (tierClass === 'warn' ? 's-maintenance' : 's-offline')}"></span>
+              <div class="dt-dev-info">
+                <b class="dt-dev-name">${escapeHtml(r.device_name)}</b>
+              </div>
+            </div>
+          </td>
+          <td>
+            <button class="off-loc-btn" onclick="openDetail('${r.location}')" title="Buka Detail Gedung ${escapeHtml(locName)}">
+              <span>${escapeHtml(locName)}</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </button>
+          </td>
+          <td class="ip-cell">
+            <span class="dt-ip-code" onclick="navigator.clipboard.writeText('${r.ip_address}'); showToast('IP disalin ke clipboard','ok')" title="Klik untuk salin IP">
+              ${escapeHtml(r.ip_address)}
+            </span>
+          </td>
+          <td>
+            <div class="sla-uptime-cell">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:3px;">
+                <b style="color:${color}; font-family:var(--mono); font-size:12px; font-variant-numeric:tabular-nums;">${uptime}%</b>
+                <span class="tcard-dev-tag ${tierClass}">${tierLabel}</span>
+              </div>
+              <div class="tcard-gauge-wrap" style="height:3px;">
+                <div class="tcard-gauge-bar is-${tierClass}" style="width:${Math.min(uptime, 100)}%;"></div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <span style="font-family:var(--mono); font-size:11.5px; color:${r.downtime_minutes > 0 ? 'var(--alert)' : 'var(--text-muted)'}; font-variant-numeric:tabular-nums;">
+              ${r.downtime_minutes} mnt
+            </span>
+          </td>
+          <td>
+            <span class="tcard-dev-lat ${latClass}">
+              [ ${r.avg_latency || 0}ms ]
+            </span>
+          </td>
+          <td style="text-align:right">
+            <button class="icon-btn" title="Riwayat Latensi & Uptime Chart" onclick="openHistoryModal('${r.device_id}')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 3v18h18"></path><path d="M18 9l-5 5-4-4-3 3"></path></svg>
+            </button>
+          </td>
         </tr>
       `;
     }).join('');
 
+    // Mobile SLA Cards
+    const mobileCardsHtml = filtered.map(r => {
+      const loc = state.locations.find(l => l.id === r.location);
+      const locName = loc ? loc.nama : r.location;
+      const uptime = Number(r.uptime_percent || 0);
+
+      let tierClass = 'ok';
+      let tierLabel = 'TERPENUHI';
+      if (uptime < 95) {
+        tierClass = 'alert';
+        tierLabel = 'BREACH';
+      } else if (uptime < 99) {
+        tierClass = 'warn';
+        tierLabel = 'WARNING';
+      }
+
+      const color = tierClass === 'ok' ? 'var(--ok)' : (tierClass === 'warn' ? 'var(--warn)' : 'var(--alert)');
+      const latClass = r.avg_latency < 30 ? 'good' : (r.avg_latency < 100 ? 'warn' : 'bad');
+
+      return `
+        <div class="sla-card ${tierClass}">
+          <div class="sla-card-head">
+            <div>
+              <h4 class="sla-card-name">${escapeHtml(r.device_name)}</h4>
+              <div class="sla-card-loc">
+                <button class="off-loc-btn" onclick="openDetail('${r.location}')">
+                  <span>SITE: <b>${escapeHtml(locName)}</b></span>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                </button>
+              </div>
+            </div>
+            <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
+              <span class="sla-card-pct" style="color:${color}">${uptime}%</span>
+              <span class="tcard-dev-tag ${tierClass}">${tierLabel}</span>
+            </div>
+          </div>
+
+          <div class="tcard-gauge-wrap" style="height:4px; margin:6px 0;">
+            <div class="tcard-gauge-bar is-${tierClass}" style="width:${Math.min(uptime, 100)}%;"></div>
+          </div>
+
+          <div class="sla-card-meta-row">
+            <div class="sc-meta-item">
+              <span class="sc-k">IP ADDR</span>
+              <span class="dt-ip-code" onclick="navigator.clipboard.writeText('${r.ip_address}'); showToast('IP disalin','ok')">${escapeHtml(r.ip_address)}</span>
+            </div>
+            <div class="sc-meta-item">
+              <span class="sc-k">EST DOWNTIME</span>
+              <span class="sc-v ${r.downtime_minutes > 0 ? 'alert' : ''}">${r.downtime_minutes} mnt</span>
+            </div>
+            <div class="sc-meta-item">
+              <span class="sc-k">AVG LAT</span>
+              <span class="tcard-dev-lat ${latClass}">${r.avg_latency || 0}ms</span>
+            </div>
+          </div>
+
+          <div class="sla-card-foot">
+            <button class="sla-card-action-btn" onclick="openHistoryModal('${r.device_id}')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 3v18h18"></path><path d="M18 9l-5 5-4-4-3 3"></path></svg>
+              <span>BUKA GRAFIK ANALISIS LATENSI →</span>
+            </button>
+          </div>
+        </div>
+      `;
+    }).join('');
+
     panel.innerHTML = `
-      <div class="sla-header">
-        <div class="sla-title-area">
-          <h2>📈 Laporan Uptime SLA (7 Hari Terakhir)</h2>
-          <p>Rata-rata ketersediaan keseluruhan pabrik: <b class="sla-avg">${avgFactoryUptime.toFixed(2)}%</b></p>
+      <!-- SLA Mission Header -->
+      <div class="sla-mission-head">
+        <div class="smh-lead">
+          <div class="smh-meta">
+            <span>AUDIT // NETWORK RELIABILITY & SLA COMPLIANCE BENCHMARK</span>
+            <span class="bcard-id-tag">PERIOD // ${slaDays} DAYS</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <h2 class="smh-title">LAPORAN KEANDALAN UPTIME (SLA)</h2>
+            <span class="tcard-dev-tag ${overallBadgeClass}" style="font-size:10px; padding:3px 8px;">
+              ${overallBadgeText}
+            </span>
+          </div>
         </div>
-        <div class="sla-actions">
-          <button class="add-btn sla-btn-secondary" onclick="exportSlaExcel()">📥 Download Excel</button>
-          <button class="add-btn sla-btn-primary" onclick="window.print()">🖨️ Cetak / PDF</button>
+
+        <div class="smh-actions">
+          <button class="smh-btn" onclick="exportSlaExcel()" title="Unduh laporan lengkap dalam format Microsoft Excel (.xlsx)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            <span>DOWNLOAD EXCEL</span>
+          </button>
+          <button class="smh-btn primary" onclick="window.print()" title="Cetak laporan atau simpan sebagai dokumen PDF">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+            <span>CETAK / PDF</span>
+          </button>
         </div>
       </div>
-      <div class="device-table-wrap">
-        <table class="device-table">
-          <thead>
-            <tr>
-              <th>Perangkat</th>
-              <th>Lokasi</th>
-              <th>IP Address</th>
-              <th>Uptime (%)</th>
-              <th>Est. Downtime</th>
-              <th>Rata-rata Latency</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows || '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">Data tidak tersedia</td></tr>'}
-          </tbody>
-        </table>
+
+      <!-- SLA Period Selector Toolbar -->
+      <div class="sla-period-bar">
+        <div class="spb-left">
+          <span class="spb-lbl">RENTANG WAKTU AUDIT:</span>
+          <div class="spb-pills">
+            <button class="spb-pill ${slaDays === 1 ? 'active' : ''}" onclick="setSlaPeriod(1)">24 JAM</button>
+            <button class="spb-pill ${slaDays === 7 ? 'active' : ''}" onclick="setSlaPeriod(7)">7 HARI</button>
+            <button class="spb-pill ${slaDays === 14 ? 'active' : ''}" onclick="setSlaPeriod(14)">14 HARI</button>
+            <button class="spb-pill ${slaDays === 30 ? 'active' : ''}" onclick="setSlaPeriod(30)">30 HARI</button>
+          </div>
+        </div>
+        <div class="spb-right">
+          <span class="spb-subtext">// Threshold SLA: Normal ≥ 99.0% · Warning 95.0–98.9% · Breach &lt; 95.0%</span>
+        </div>
       </div>
+
+      <!-- SLA Telemetry Metrics Strip -->
+      <div class="sla-metrics-strip">
+        <div class="tcm-item"><span class="tcm-k">AVG UPTIME</span><b class="tcm-v ${isOverallMet ? 'ok' : 'alert'}">${avgFactoryUptime}%</b></div>
+        <div class="tcm-sep">│</div>
+        <div class="tcm-item"><span class="tcm-k">COMPLIANT (≥99%)</span><b class="tcm-v ok">${metCount}</b></div>
+        <div class="tcm-sep">│</div>
+        <div class="tcm-item"><span class="tcm-k">WARNING</span><b class="tcm-v ${warnCount > 0 ? 'warn' : ''}">${warnCount}</b></div>
+        <div class="tcm-sep">│</div>
+        <div class="tcm-item"><span class="tcm-k">BREACH (&lt;95%)</span><b class="tcm-v ${breachCount > 0 ? 'alert' : ''}">${breachCount}</b></div>
+        <div class="tcm-sep">│</div>
+        <div class="tcm-item"><span class="tcm-k">TOTAL DOWNTIME</span><b class="tcm-v ${totalDowntimeMin > 0 ? 'alert' : ''}">${totalDowntimeMin} mnt</b></div>
+        <div class="tcm-sep">│</div>
+        <div class="tcm-item"><span class="tcm-k">AVG LATENCY</span><b class="tcm-v">${avgLat}ms</b></div>
+      </div>
+
+      <!-- SLA Triage & Filter Bar -->
+      <div class="sla-filter-bar">
+        <div class="sfb-status-group">
+          <button class="sfb-pill ${slaComplianceFilter === 'all' ? 'active' : ''}" onclick="setSlaComplianceFilter('all')">SEMUA (${totalDevices})</button>
+          <button class="sfb-pill ${slaComplianceFilter === 'met' ? 'active' : ''}" onclick="setSlaComplianceFilter('met')">TERPENUHI (${metCount})</button>
+          ${warnCount > 0 ? `<button class="sfb-pill ${slaComplianceFilter === 'warn' ? 'active' : ''}" onclick="setSlaComplianceFilter('warn')">WARNING (${warnCount})</button>` : ''}
+          ${breachCount > 0 ? `<button class="sfb-pill ${slaComplianceFilter === 'breach' ? 'active' : ''}" onclick="setSlaComplianceFilter('breach')">BREACH (${breachCount})</button>` : ''}
+        </div>
+
+        <div class="sfb-right">
+          ${uniqueLocs.length > 0 ? `
+            <select class="sfb-select" onchange="setSlaLocFilter(this.value)">
+              <option value="all">Semua Lokasi (${uniqueLocs.length})</option>
+              ${uniqueLocs.map(l => `<option value="${escapeHtml(l.id)}" ${slaLocFilter === l.id ? 'selected' : ''}>${escapeHtml(l.nama)}</option>`).join('')}
+            </select>
+          ` : ''}
+
+          <div class="tt-search-wrap">
+            <svg class="tt-search-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" class="sfb-search" placeholder="Cari nama, lokasi, IP..." value="${escapeHtml(slaSearchTerm)}" oninput="onSlaSearch(this.value)">
+            ${slaSearchTerm ? `<button class="tt-clear-search" onclick="onSlaSearch('')">×</button>` : ''}
+          </div>
+        </div>
+      </div>
+
+      <!-- Content (Desktop Table + Mobile Cards) -->
+      ${filtered.length === 0 ? `
+        <div class="empty-state" style="padding:40px 20px; text-align:center; background:var(--panel); border:1px solid var(--border); border-radius:6px;">
+          <p style="color:var(--text); font-weight:600; margin:0 0 4px; font-family:var(--mono);">// TIDAK ADA PERANGKAT YANG COCOK DENGAN FILTER SLA</p>
+          <p style="color:var(--text-muted); font-size:12px; margin:0;">Sesuaikan filter kepatuhan SLA atau kata kunci pencarian.</p>
+        </div>
+      ` : `
+        <!-- Desktop SLA Table -->
+        <div class="device-table-wrap">
+          <table class="device-table">
+            <thead>
+              <tr>
+                <th>PERANGKAT</th>
+                <th>LOKASI / GEDUNG</th>
+                <th>ALAMAT IP</th>
+                <th style="min-width:180px;">KEPATUHAN UPTIME & GAUGE</th>
+                <th>EST. DOWNTIME</th>
+                <th>RATA-RATA LATENSI</th>
+                <th style="text-align:right">DIAGNOSTIK</th>
+              </tr>
+            </thead>
+            <tbody>${tableRowsHtml}</tbody>
+          </table>
+        </div>
+
+        <!-- Mobile SLA Cards -->
+        <div class="sla-cards-mobile">
+          ${mobileCardsHtml}
+        </div>
+      `}
     `;
   } catch (err) {
-    panel.innerHTML = `<p style="color:var(--alert)">Gagal memuat laporan SLA: ${err.message}</p>`;
+    panel.innerHTML = `<p style="color:var(--alert); padding:20px; font-family:var(--mono);">Gagal memuat laporan SLA: ${err.message}</p>`;
   }
 }
 
@@ -3074,29 +3349,25 @@ function exportSlaExcel() {
   });
 
   try {
-    // Membuat sheet baru dari data JSON
     const worksheet = XLSX.utils.json_to_sheet(excelData);
-    
-    // Set auto-width kolom sederhana biar Excel nya rapi
     const colsWidth = [
       { wch: 30 }, // Nama Perangkat
       { wch: 25 }, // Lokasi
       { wch: 18 }, // IP Address
-      { wch: 12 }, // Uptime
+      { wch: 14 }, // Uptime
       { wch: 25 }, // Est Downtime
       { wch: 22 }  // Latency
     ];
     worksheet['!cols'] = colsWidth;
 
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Laporan SLA Uptime");
+    XLSX.utils.book_append_sheet(workbook, worksheet, `SLA_${slaDays}Hari`);
 
-    // Unduh file excel native .xlsx
-    const filename = `Laporan_Uptime_SLA_${new Date().toISOString().split('T')[0]}.xlsx`;
+    const filename = `Laporan_Uptime_SLA_${slaDays}Hari_${new Date().toISOString().split('T')[0]}.xlsx`;
     XLSX.writeFile(workbook, filename);
-    showToast('Laporan Excel berhasil diunduh', 'ok');
+    showToast(`Laporan Excel (${slaDays} Hari) berhasil diunduh`, 'ok');
   } catch (err) {
-    alert('Gagal mengekspor ke Excel: ' + err.message);
+    showToast('Gagal mengekspor ke Excel: ' + err.message, 'error');
   }
 }
 
