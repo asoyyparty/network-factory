@@ -2064,7 +2064,7 @@ button:focus:not(:focus-visible) { outline: none; }
 }
 
 @media (max-width: 768px) {
-  #report-panel, #audit-panel, #offline-panel {
+  #audit-panel, #offline-panel {
     padding: 16px !important;
   }
   .sla-header {
@@ -4059,13 +4059,15 @@ button:focus:not(:focus-visible) { outline: none; }
   transform: translateY(1px);
 }
 
-/* ── Mobile Responsive Overrides for SLA Report (Hallmark Gates 49, 50, 52) ── */
+/* ── Mobile Responsive Overrides for SLA Report (Hallmark Gates 34, 49, 50, 52) ── */
 @media (max-width: 768px) {
   #report-panel {
-    padding: 12px 12px max(20px, env(safe-area-inset-bottom));
+    padding: 10px 10px max(24px, env(safe-area-inset-bottom)) !important;
     gap: 10px;
+    overflow-x: hidden;
   }
 
+  /* Mission Header Mobile */
   .sla-mission-head {
     padding: 12px 14px;
     flex-direction: column;
@@ -4074,26 +4076,33 @@ button:focus:not(:focus-visible) { outline: none; }
   }
   .smh-lead {
     width: 100%;
+    min-width: 0;
   }
   .smh-title {
-    font-size: 16px;
+    font-size: 15px;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    min-width: 0;
   }
   .smh-actions {
     width: 100%;
     display: flex;
-    gap: 6px;
+    gap: 8px;
   }
   .smh-btn {
     flex: 1;
-    min-height: 42px;
+    min-height: 44px;
     justify-content: center;
     font-size: 11px;
-    padding: 8px 10px;
+    padding: 0 10px;
+    border-radius: 6px;
+    touch-action: manipulation;
   }
 
-  /* Period Bar Mobile */
+  /* Period Selector Bar Mobile */
   .sla-period-bar {
-    padding: 8px 10px;
+    padding: 10px 12px;
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
@@ -4104,17 +4113,29 @@ button:focus:not(:focus-visible) { outline: none; }
     align-items: flex-start;
     gap: 6px;
   }
+  .spb-lbl {
+    font-size: 9.5px;
+    color: var(--color-ink-3);
+    letter-spacing: 0.04em;
+    font-weight: 700;
+  }
   .spb-pills {
     width: 100%;
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 4px;
   }
   .spb-pill {
-    flex: 1;
-    min-height: 38px;
+    min-height: 42px;
     text-align: center;
-    padding: 6px 4px;
-    font-size: 10px;
+    padding: 0 4px;
+    font-size: 10.5px;
+    font-weight: 600;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
   }
   .spb-right {
     display: none;
@@ -4123,24 +4144,40 @@ button:focus:not(:focus-visible) { outline: none; }
   /* Telemetry Quad Strip on Mobile */
   .sla-metrics-strip {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
-    padding: 8px 10px;
+    padding: 8px;
+    border-radius: 6px;
   }
   .sla-metrics-strip .tcm-sep {
     display: none;
   }
   .sla-metrics-strip .tcm-item {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 4px;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 2px;
+    min-height: 48px;
+    text-align: center;
+    min-width: 0;
   }
   .sla-metrics-strip .tcm-k {
     font-size: 8px;
+    text-align: center;
+    line-height: 1.15;
+    letter-spacing: 0.02em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 100%;
   }
   .sla-metrics-strip .tcm-v {
-    font-size: 12px;
+    font-size: 13px;
+    font-family: var(--mono);
   }
 
   /* Filter Bar Mobile */
@@ -4157,33 +4194,44 @@ button:focus:not(:focus-visible) { outline: none; }
     flex-wrap: nowrap;
     gap: 4px;
     padding-bottom: 2px;
+    scrollbar-width: none;
   }
   .sfb-status-group::-webkit-scrollbar {
     display: none;
   }
   .sfb-pill {
     flex: 0 0 auto;
-    min-height: 38px;
-    padding: 6px 10px;
-    font-size: 10.5px;
+    min-height: 42px;
+    padding: 0 12px;
+    font-size: 11px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
   }
   .sfb-right {
     width: 100%;
     display: flex;
+    flex-direction: column;
     gap: 6px;
   }
   .sfb-select {
-    flex: 1;
-    min-height: 40px;
-    font-size: 12px;
+    width: 100%;
+    min-height: 44px;
+    font-size: 12.5px;
+    padding: 8px 12px;
+    border-radius: 6px;
+  }
+  .sla-filter-bar .tt-search-wrap {
+    width: 100%;
   }
   .sfb-search {
     width: 100% !important;
-    min-height: 40px;
-    font-size: 12px;
-  }
-  .sla-filter-bar .tt-search-wrap {
-    flex: 1;
+    min-height: 44px;
+    font-size: 12.5px;
+    padding: 8px 28px 8px 32px;
+    border-radius: 6px;
   }
 
   /* Dual Presentation: Hide Desktop Table on Mobile, Show SLA Cards */
@@ -4193,15 +4241,117 @@ button:focus:not(:focus-visible) { outline: none; }
   .sla-cards-mobile {
     display: flex;
     flex-direction: column;
+    gap: 10px;
+  }
+
+  /* SLA Mobile Card Refinements */
+  .sla-card {
+    padding: 12px 14px;
+    border-radius: 8px;
+    gap: 10px;
+  }
+  .sla-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
     gap: 8px;
+  }
+  .sla-card-name {
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    min-width: 0;
+  }
+  .sla-card-loc {
+    margin-top: 4px;
+  }
+  .sla-card-loc .off-loc-btn {
+    min-height: 32px;
+    padding: 3px 8px;
+    font-size: 10.5px;
+  }
+  .sla-card-pct {
+    font-size: 16px;
+  }
+  .sla-card-meta-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr);
+    gap: 6px;
+    padding: 8px 10px;
+  }
+  .sla-card-meta-row .sc-meta-item {
+    min-width: 0;
+  }
+  .sla-card-meta-row .dt-ip-code {
+    width: 100%;
+    justify-content: center;
+    font-size: 10px;
+    padding: 4px 2px;
+    min-height: 28px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   /* Touch Target Discipline on Mobile SLA Cards (>= 44px) */
   .sla-card-action-btn {
     min-height: 44px;
     font-size: 11.5px;
+    border-radius: 6px;
   }
 }
+
+/* ── Specific Narrow Phone Breakpoint (≤ 420px) ── */
+@media (max-width: 420px) {
+  /* 2-column Telemetry Grid on Narrow Phones for Breathing Room */
+  .sla-metrics-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    padding: 6px;
+  }
+  .sla-metrics-strip .tcm-item {
+    padding: 8px 6px;
+    min-height: 52px;
+  }
+  .sla-metrics-strip .tcm-k {
+    font-size: 8.5px;
+    white-space: normal;
+  }
+  .sla-metrics-strip .tcm-v {
+    font-size: 14px;
+  }
+
+  /* Compact Card Meta Row on Narrow Phones */
+  .sla-card-meta-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 6px;
+  }
+  .sla-card-meta-row .sc-meta-item:first-child {
+    grid-column: span 2;
+  }
+}
+
+/* ── Ultra-Compact Phone Breakpoint (≤ 360px) ── */
+@media (max-width: 360px) {
+  .smh-actions {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .smh-btn {
+    width: 100%;
+  }
+  .spb-pills {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+  }
+  .spb-pill {
+    min-height: 38px;
+  }
+}
+
 
 
 
