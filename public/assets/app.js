@@ -1035,17 +1035,151 @@ function renderGridDashboard() {
   panel.innerHTML = html;
 }
 
-/* ── 11. TOPOLOGY — Hierarchical Tree Table ──────────────────────────── */
+/* ── 11. TOPOLOGY — Hallmark Industrial Signal Flow & Schematic ─────────── */
 
-/* Assign stable UIDs to every node in the tree (run once at load) */
 let _uidSeq = 0;
-// UID assignment is now handled in loadTopology()
-/* Nodes that start collapsed */
 const collapsedNodes = new Set();
-// Collapsed nodes are initialized in loadTopology() after tree is built
+
+let topoFilterMode = 'all'; // 'all' or 'faults'
+let topoViewMode = 'schematic'; // 'schematic' or 'tree'
+let topoSearchTerm = '';
+
+/* Helper: Rollup telemetry status from descendants or building locId */
+function getNodeAggregateStatus(node) {
+  if (!node) return 'idle';
+  if (node.kind === 'building' && node.locId) {
+    return locationAggregateStatus(node.locId);
+  }
+  let hasAlert = false;
+  let hasWarn = false;
+  let hasOk = false;
+
+  function traverse(n) {
+    if (!n) return;
+    if (n.kind === 'building' && n.locId) {
+      const s = locationAggregateStatus(n.locId);
+      if (s === 'alert') hasAlert = true;
+      else if (s === 'warn') hasWarn = true;
+      else if (s === 'ok') hasOk = true;
+    }
+    (n.children || []).forEach(traverse);
+  }
+  (node.children || []).forEach(traverse);
+
+  if (hasAlert) return 'alert';
+  if (hasWarn) return 'warn';
+  if (hasOk) return 'ok';
+  return 'idle';
+}
+
+/* Helper: Count all descendants of a node */
+function countDescendants(node) {
+  if (!node) return 0;
+  let count = 0;
+  function walk(n) {
+    (n.children || []).forEach(c => {
+      count++;
+      walk(c);
+    });
+  }
+  walk(node);
+  return count;
+}
+
+/* Helper: Retrieve all UIDs for nodes having children */
+function getAllExpandableUids(node) {
+  const uids = [];
+  function walk(n) {
+    if (!n) return;
+    if (n.children && n.children.length > 0) {
+      uids.push(n._uid);
+      n.children.forEach(walk);
+    }
+  }
+  walk(node);
+  return uids;
+}
+
+/* Tree Control Actions */
+window.expandAllTopo = function() {
+  collapsedNodes.clear();
+  renderTopology();
+};
+
+window.collapseAllTopo = function() {
+  collapsedNodes.clear();
+  if (NETWORK_TREE) {
+    (NETWORK_TREE.children || []).forEach(child => {
+      getAllExpandableUids(child).forEach(uid => collapsedNodes.add(uid));
+    });
+  }
+  renderTopology();
+};
+
+window.setTopoFilterMode = function(mode) {
+  topoFilterMode = mode;
+  renderTopology();
+};
+
+window.setTopoViewMode = function(mode) {
+  topoViewMode = mode;
+  renderTopology();
+};
+
+window.onTopoSearch = function(val) {
+  topoSearchTerm = (val || '').trim().toLowerCase();
+  if (topoSearchTerm && NETWORK_TREE) {
+    function revealMatching(n, parentPath) {
+      if (!n) return false;
+      const isMatch = (n.label || '').toLowerCase().includes(topoSearchTerm);
+      let childMatched = false;
+      (n.children || []).forEach(c => {
+        if (revealMatching(c, parentPath.concat(n))) {
+          childMatched = true;
+        }
+      });
+      if (isMatch || childMatched) {
+        parentPath.forEach(p => collapsedNodes.delete(p._uid));
+        return true;
+      }
+      return false;
+    }
+    revealMatching(NETWORK_TREE, []);
+  }
+  renderTopology();
+};
+
+/* Interactive Signal Path Illumination */
+window.highlightSignalPath = function(uid) {
+  if (!uid) return;
+  $$('.tc.is-path-highlight, .tt-node-row.is-path-highlight').forEach(el => el.classList.remove('is-path-highlight'));
+  const path = [];
+  function findPath(n, currentPath) {
+    if (!n) return false;
+    currentPath.push(n._uid);
+    if (n._uid === uid) {
+      path.push(...currentPath);
+      return true;
+    }
+    for (const c of (n.children || [])) {
+      if (findPath(c, currentPath)) return true;
+    }
+    currentPath.pop();
+    return false;
+  }
+  if (NETWORK_TREE) findPath(NETWORK_TREE, []);
+  path.forEach(pUid => {
+    $$(`[data-uid="${pUid}"]`).forEach(el => el.classList.add('is-path-highlight'));
+  });
+};
+
+window.clearSignalPath = function() {
+  $$('.tc.is-path-highlight, .tt-node-row.is-path-highlight').forEach(el => el.classList.remove('is-path-highlight'));
+};
 
 /* Get all currently-visible leaf paths (respects collapsed nodes) */
 function _leafPaths(node, path){
+  if (!node) return [];
   path = (path||[]).concat(node);
   const ch = node.children||[];
   if (!ch.length || collapsedNodes.has(node._uid)) return [path];
@@ -1054,10 +1188,33 @@ function _leafPaths(node, path){
 
 function escapeSvg(s){ return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;'); }
 
-/* Build the HTML for the hierarchical table */
+/* Build the HTML for the hierarchical schematic table */
 function buildTopoTable(){
   if(!NETWORK_TREE) return '';
-  const paths  = _leafPaths(NETWORK_TREE, []);
+  let paths = _leafPaths(NETWORK_TREE, []);
+  if (topoFilterMode === 'faults') {
+    paths = paths.filter(p => p.some(n => {
+      const st = getNodeAggregateStatus(n);
+      return st === 'alert' || st === 'warn';
+    }));
+  }
+
+  if (paths.length === 0) {
+    return `
+      <tr>
+        <td colspan="10" style="border:none; padding:48px 20px; text-align:center;">
+          <div style="font-family:var(--mono); color:var(--ok); font-size:14px; font-weight:700; margin-bottom:6px;">
+            ● 100% OPERATIONAL // TIDAK ADA GANGGUAN TERDETEKSI
+          </div>
+          <p style="color:var(--text-muted); font-size:12px; margin:0 0 14px; font-family:var(--sans);">
+            Seluruh cabang dan jalur infrastruktur jaringan saat ini berstatus normal.
+          </p>
+          <button class="tt-btn" onclick="setTopoFilterMode('all')">TAMPILKAN SEMUA RUTE</button>
+        </td>
+      </tr>
+    `;
+  }
+
   const maxCol = Math.max(...paths.map(p => p.length - 1));
 
   /* Precompute rowspan: first occurrence row & total span for each node */
@@ -1073,50 +1230,136 @@ function buildTopoTable(){
 
   paths.forEach((path, ri) => {
     h += '<tr class="topo-row">';
-    /* Row number (first column) — only on first row */
-    if (ri === 0 || rsMap.get(path[0]).rowStart === ri) {
-      // handled inside path loop for root
-    }
 
     for (let ci = 0; ci < path.length; ci++) {
       const node = path[ci];
       const rs   = rsMap.get(node);
       if (rs.rowStart !== ri) continue; /* already rendered via rowspan */
 
+      const isRoot   = ci === 0;
       const isLast   = ci === path.length - 1;
       const colspan  = isLast && ci < maxCol ? maxCol - ci + 1 : 1;
       const hasKids  = (node.children||[]).length > 0;
       const isColl   = collapsedNodes.has(node._uid);
       const isBldg   = node.kind === 'building';
       const locId    = node.locId || '';
-      const agg      = isBldg && locId ? locationAggregateStatus(locId) : 'idle';
+      const agg      = getNodeAggregateStatus(node);
       const cnt      = isBldg && locId ? deviceCount(locId) : 0;
+      const descCount = countDescendants(node);
+
+      let tierTag = 'ACC';
+      let tierClass = 'acc';
+      if (isRoot) {
+        tierTag = 'CORE';
+        tierClass = 'core';
+      } else if (node.label && (node.label.includes('FO') || node.label.includes('SW-') || ci === 1)) {
+        tierTag = node.label.includes('FO') ? 'FO-TRUNK' : 'DIST';
+        tierClass = 'dist';
+      } else if (isBldg) {
+        tierTag = 'LOC';
+        tierClass = 'bldg';
+      }
+
+      const isSearchMatch = topoSearchTerm && (node.label || '').toLowerCase().includes(topoSearchTerm);
 
       let cls = 'tc';
-      if (isBldg)       cls += ' tc-bldg';
+      if (isBldg) cls += ' tc-bldg';
       else if (hasKids) cls += ' tc-parent';
-      else              cls += ' tc-leaf';
-      if (isColl)       cls += ' tc-coll';
+      else cls += ' tc-leaf';
+      if (isColl) cls += ' tc-coll';
       else if (hasKids) cls += ' tc-expanded';
-      if (ci === 0)     cls += ' tc-root';
-      cls += ` s-${agg} tc-lvl-${ci % 8}`;
+      if (isRoot) cls += ' tc-root';
+      if (isSearchMatch) cls += ' is-search-match';
+      cls += ` s-${agg} tier-${tierClass}`;
 
       const onclick = isBldg && locId
         ? `openDetail('${locId}')`
         : hasKids ? `_tt(${node._uid})` : '';
 
-      h += `<td class="${cls}" rowspan="${rs.span}" colspan="${colspan}"${onclick ? ` onclick="${onclick}"` : ''} title="${escapeSvg(node.label)}">`;
+      h += `<td class="${cls}" data-uid="${node._uid}" rowspan="${rs.span}" colspan="${colspan}"${onclick ? ` onclick="${onclick}"` : ''} onmouseenter="highlightSignalPath(${node._uid})" onmouseleave="clearSignalPath()" title="${escapeSvg(node.label)}">`;
       h += `<div class="tc-in">`;
-      if (hasKids) h += `<span class="tc-chev">${isColl ? '▶' : '▼'}</span>`;
-      else         h += `<span class="tc-dot"></span>`;
+      if (hasKids) {
+        h += `<span class="tc-chev">${isColl ? '▶' : '▼'}</span>`;
+      } else {
+        h += `<span class="tc-tier-tag ${tierClass}">${tierTag}</span>`;
+      }
       h += `<span class="tc-lbl">${escapeSvg(node.label)}</span>`;
-      if (cnt > 0) h += `<span class="tc-cnt s-${agg}">${cnt}</span>`;
+      if (isColl && descCount > 0) {
+        h += `<span class="tc-coll-pill">[+${descCount}]</span>`;
+      }
+      if (cnt > 0) {
+        h += `<span class="tc-cnt s-${agg}">${cnt}</span>`;
+      }
       h += `</div></td>`;
     }
     h += '</tr>';
   });
 
   return h;
+}
+
+/* Build the HTML for the Cascading Tree View (Mobile / Vertical NOC View) */
+function buildTopoCascadeTree() {
+  if (!NETWORK_TREE) return '';
+  let html = '<div class="topo-tree-container">';
+
+  function renderTreeNode(node, depth, isLastChild, guidePrefix) {
+    if (!node) return;
+    const isRoot = depth === 0;
+    const hasKids = (node.children || []).length > 0;
+    const isColl = collapsedNodes.has(node._uid);
+    const isBldg = node.kind === 'building';
+    const locId = node.locId || '';
+    const agg = getNodeAggregateStatus(node);
+    const cnt = isBldg && locId ? deviceCount(locId) : 0;
+    const descCount = countDescendants(node);
+
+    if (topoFilterMode === 'faults' && agg !== 'alert' && agg !== 'warn') {
+      return;
+    }
+
+    const isSearchMatch = topoSearchTerm && (node.label || '').toLowerCase().includes(topoSearchTerm);
+
+    let tierTag = 'ACC';
+    let tierClass = 'acc';
+    if (isRoot) { tierTag = 'CORE'; tierClass = 'core'; }
+    else if (node.label && (node.label.includes('FO') || node.label.includes('SW-') || depth === 1)) {
+      tierTag = node.label.includes('FO') ? 'FO' : 'DIST';
+      tierClass = 'dist';
+    } else if (isBldg) {
+      tierTag = 'LOC';
+      tierClass = 'bldg';
+    }
+
+    const branchChar = isRoot ? '●' : (isLastChild ? '└──' : '├──');
+    const rowClick = isBldg && locId ? `openDetail('${locId}')` : (hasKids ? `_tt(${node._uid})` : '');
+
+    html += `
+      <div class="tt-node-row s-${agg} ${isSearchMatch ? 'is-search-match' : ''}" data-uid="${node._uid}" ${rowClick ? `onclick="${rowClick}"` : ''} onmouseenter="highlightSignalPath(${node._uid})" onmouseleave="clearSignalPath()" style="margin-left:${Math.min(depth * 18, 90)}px;">
+        <div class="tt-node-lead">
+          <span class="tt-guide-line">${isRoot ? '' : branchChar}</span>
+          ${hasKids ? `<button class="tc-chev" onclick="event.stopPropagation(); _tt(${node._uid})">${isColl ? '▶' : '▼'}</button>` : `<span class="tc-tier-tag ${tierClass}">${tierTag}</span>`}
+          <span class="tt-node-name" title="${escapeHtml(node.label)}">${escapeHtml(node.label)}</span>
+        </div>
+        <div class="tt-node-trail">
+          ${isColl && descCount > 0 ? `<span class="tc-coll-pill">[+${descCount}]</span>` : ''}
+          ${cnt > 0 ? `<span class="tc-cnt s-${agg}">${cnt} DEVS</span>` : ''}
+          ${isBldg ? `<span class="tc-view-btn" onclick="event.stopPropagation(); openDetail('${locId}')">DETAIL →</span>` : ''}
+        </div>
+      </div>
+    `;
+
+    if (hasKids && !isColl) {
+      const children = node.children;
+      children.forEach((child, idx) => {
+        renderTreeNode(child, depth + 1, idx === children.length - 1, guidePrefix + (isLastChild ? '    ' : '│   '));
+      });
+    }
+  }
+
+  renderTreeNode(NETWORK_TREE, 0, true, '');
+  html += '</div>';
+  return html;
 }
 
 /* Toggle collapse state and re-render */
@@ -1178,28 +1421,101 @@ function renderTopology(){
   const inner = $('#topo-inner');
   if (!inner) return;
 
-  const oldScroll = $('.topo-table-scroll', inner);
+  const oldScroll = $('.topo-table-scroll', inner) || $('.topo-tree-scroll', inner);
   const prevLeft = oldScroll ? oldScroll.scrollLeft : 0;
   const prevTop  = oldScroll ? oldScroll.scrollTop  : 0;
 
-  inner.innerHTML =
-    `<div class="topo-th-wrap">` +
-    `<div class="topo-legend-row">` +
-    `<span class="tl-dot s-ok"></span>Online&nbsp;&nbsp;` +
-    `<span class="tl-dot s-alert"></span>Offline&nbsp;&nbsp;` +
-    `<span class="tl-dot s-warn"></span>Maintenance&nbsp;&nbsp;` +
-    `<span class="tl-dot s-idle"></span>Belum Ada Data&nbsp;&nbsp;` +
-    `<span style="margin-left:12px;color:var(--text-muted)">▶ = klik expand/collapse | 🖐️ Klik & drag mouse untuk geser peta</span>` +
-    `</div>` +
-    `<div class="topo-table-scroll">` +
-    `<table class="topo-htable"><tbody>${buildTopoTable()}</tbody></table>` +
-    `</div></div>`;
+  // Calculate live HUD telemetry
+  let totalNodes = RAW_TOPOLOGY.length;
+  let trunkCount = RAW_TOPOLOGY.filter(n => n.kind === 'infra' && n.label && (n.label.includes('FO') || n.label.includes('SW-'))).length;
+  let bldgCount = RAW_TOPOLOGY.filter(n => n.kind === 'building').length;
+  let rootAgg = getNodeAggregateStatus(NETWORK_TREE);
 
-  const newScroll = $('.topo-table-scroll', inner);
+  let faultBadge = '';
+  if (rootAgg === 'alert') {
+    faultBadge = '<span class="tt-fault-badge">! GANGGUAN JALUR</span>';
+  } else if (rootAgg === 'warn') {
+    faultBadge = '<span class="tt-ok-badge" style="color:var(--warn); background:rgba(210,153,34,0.15); border-color:rgba(210,153,34,0.3)">▲ MAINTENANCE</span>';
+  } else {
+    faultBadge = '<span class="tt-ok-badge">● 100% OPERATIONAL</span>';
+  }
+
+  let contentHtml = '';
+  if (topoViewMode === 'tree') {
+    contentHtml = `
+      <div class="topo-tree-scroll">
+        ${buildTopoCascadeTree()}
+      </div>
+    `;
+  } else {
+    contentHtml = `
+      <div class="topo-table-scroll">
+        <table class="topo-htable"><tbody>${buildTopoTable()}</tbody></table>
+      </div>
+    `;
+  }
+
+  inner.innerHTML = `
+    <div class="topo-th-wrap">
+      <div class="topo-toolbar">
+        <div class="tt-left">
+          <span class="tt-tag">SIGNAL PATH // CORE BACKBONE</span>
+          <div class="tt-hud">
+            <span class="tt-hud-item">NODES: <b>${totalNodes}</b></span>
+            <span class="tt-hud-sep">│</span>
+            <span class="tt-hud-item">TRUNKS: <b>${trunkCount}</b></span>
+            <span class="tt-hud-sep">│</span>
+            <span class="tt-hud-item">SITES: <b>${bldgCount}</b></span>
+          </div>
+          ${faultBadge}
+        </div>
+        <div class="tt-right">
+          <div class="tt-search-wrap">
+            <svg class="tt-search-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" class="tt-search-input" placeholder="Cari node / gedung..." value="${escapeHtml(topoSearchTerm)}" oninput="onTopoSearch(this.value)">
+            ${topoSearchTerm ? `<button class="tt-clear-search" onclick="onTopoSearch('')" title="Hapus pencarian">×</button>` : ''}
+          </div>
+          <div class="tt-btn-group">
+            <button class="tt-btn" onclick="expandAllTopo()" title="Buka Semua Cabang Topologi">⊞ BUKA SEMUA</button>
+            <button class="tt-btn" onclick="collapseAllTopo()" title="Tutup Semua Cabang FO">⊟ TUTUP SEMUA</button>
+            <button class="tt-btn tt-filter-fault ${topoFilterMode === 'faults' ? 'active' : ''}" onclick="setTopoFilterMode(topoFilterMode === 'faults' ? 'all' : 'faults')" title="Saring Hanya Jalur yang Mengalami Gangguan">
+              ! HANYA GANGGUAN
+            </button>
+          </div>
+          <div class="gt-view-toggle">
+            <button class="gt-btn ${topoViewMode === 'schematic' ? 'active' : ''}" onclick="setTopoViewMode('schematic')" title="Tampilan Matriks Skematik (Horizontal)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+              <span>SKEMATIK</span>
+            </button>
+            <button class="gt-btn ${topoViewMode === 'tree' ? 'active' : ''}" onclick="setTopoViewMode('tree')" title="Tampilan Pohon Kaskade (Vertikal)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+              <span>POHON</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      ${contentHtml}
+      <div class="topo-legend-strip">
+        <div class="tls-left">
+          <div class="tls-item"><span class="tls-dot ok"></span><span>Online / Normal</span></div>
+          <div class="tls-item"><span class="tls-dot alert"></span><span>Gangguan / Offline</span></div>
+          <div class="tls-item"><span class="tls-dot warn"></span><span>Maintenance</span></div>
+          <div class="tls-item"><span class="tls-dot idle"></span><span>Belum Ada Data</span></div>
+        </div>
+        <div class="tls-hint">
+          <span>// Klik ▶/▼ expand · Arahkan kursor untuk menyorot jalur sinyal</span>
+        </div>
+      </div>
+    </div>
+  `;
+
+  const newScroll = $('.topo-table-scroll', inner) || $('.topo-tree-scroll', inner);
   if (newScroll) {
     newScroll.scrollLeft = prevLeft;
     newScroll.scrollTop  = prevTop;
-    enableTopoDragScroll(newScroll);
+    if (newScroll.classList.contains('topo-table-scroll')) {
+      enableTopoDragScroll(newScroll);
+    }
   }
 }
 
