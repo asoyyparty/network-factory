@@ -4347,6 +4347,8 @@ button:focus:not(:focus-visible) { outline: none; }
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 4px;
   }
+}
+
 /* ── SECTION 10.10: HALLMARK REDESIGN — HIERARCHY & TAXONOMY MODAL (#zones-modal) ── */
 /* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V5 */
 .zh-modal {

@@ -663,10 +663,20 @@ router.delete('/locations/:id', async (req, res) => {
     const loc = lRows[0];
     
     // Check if devices are attached to this location
-    const [dRows] = await db.execute('SELECT COUNT(*) as cnt FROM devices WHERE loc_id = ?', [req.params.id]);
+    const [dRows] = await db.execute(`
+      SELECT COUNT(*) as cnt, GROUP_CONCAT(nama SEPARATOR ', ') as dev_names
+      FROM devices WHERE loc_id = ?
+    `, [req.params.id]);
+
     if (dRows[0].cnt > 0) {
-      return res.status(400).json({ error: `Tidak dapat menghapus "${loc.nama}" karena masih digunakan oleh ${dRows[0].cnt} perangkat` });
+      const devList = dRows[0].dev_names ? ` (${dRows[0].dev_names})` : '';
+      return res.status(400).json({ 
+        error: `Tidak dapat menghapus "${loc.nama}" karena masih digunakan oleh ${dRows[0].cnt} perangkat aktif${devList}. Harap pindahkan perangkat ke ruangan lain terlebih dahulu.` 
+      });
     }
+
+    // Unlink any topology nodes referencing this location
+    await db.execute('UPDATE topology_nodes SET loc_id = NULL WHERE loc_id = ?', [req.params.id]);
 
     await db.execute('DELETE FROM locations WHERE id = ?', [req.params.id]);
 

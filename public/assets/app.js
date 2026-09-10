@@ -4832,7 +4832,7 @@ function renderZonesTable() {
                   <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                   <span>Edit</span>
                 </button>
-                <button class="action-btn-pill delete zh-tbl-btn" onclick="deleteZone(${z.id}, '${escapeHtml(z.label)}')">
+                <button class="action-btn-pill delete zh-tbl-btn" onclick="deleteZone(${z.id})">
                   <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                   <span>Hapus</span>
                 </button>
@@ -4873,7 +4873,7 @@ function renderZonesTable() {
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 <span>Edit Kategori</span>
               </button>
-              <button class="action-btn-pill delete zh-card-btn" onclick="deleteZone(${z.id}, '${escapeHtml(z.label)}')">
+              <button class="action-btn-pill delete zh-card-btn" onclick="deleteZone(${z.id})">
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                 <span>Hapus</span>
               </button>
@@ -4959,7 +4959,17 @@ async function submitZoneForm() {
   }
 }
 
-async function deleteZone(id, label) {
+async function deleteZone(id) {
+  const z = ZONES.find(item => item.id === id);
+  const label = z ? z.label : 'Kategori';
+  const locs = z ? locationsByZone(z.key) : [];
+  const locCount = z && z.location_count !== undefined ? z.location_count : locs.length;
+
+  if (locCount > 0) {
+    showToast(`Tidak dapat menghapus "${label}" karena masih memiliki ${locCount} sub-kategori/ruangan. Pindahkan atau hapus ruangan terlebih dahulu.`, 'warning');
+    return;
+  }
+
   if (!confirm(`Apakah Anda yakin ingin menghapus kategori "${label}"?`)) return;
 
   try {
@@ -5044,7 +5054,7 @@ async function renderSubCategoriesTable() {
                   <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                   <span>Edit</span>
                 </button>
-                <button class="action-btn-pill delete zh-tbl-btn" onclick="deleteSubCat('${l.id}', '${escapeHtml(l.nama)}')">
+                <button class="action-btn-pill delete zh-tbl-btn" onclick="deleteSubCat('${l.id}')">
                   <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                   <span>Hapus</span>
                 </button>
@@ -5078,7 +5088,7 @@ async function renderSubCategoriesTable() {
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 <span>Edit Ruangan</span>
               </button>
-              <button class="action-btn-pill delete zh-card-btn" onclick="deleteSubCat('${l.id}', '${escapeHtml(l.nama)}')">
+              <button class="action-btn-pill delete zh-card-btn" onclick="deleteSubCat('${l.id}')">
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
                 <span>Hapus</span>
               </button>
@@ -5157,8 +5167,19 @@ async function submitSubCatForm() {
   }
 }
 
-async function deleteSubCat(id, name) {
-  if (!confirm(`Apakah Anda yakin ingin menghapus sub-kategori "${name}"?`)) return;
+async function deleteSubCat(id) {
+  const loc = allLocations.find(l => String(l.id) === String(id));
+  const locName = loc ? loc.nama : id;
+  const devCount = loc ? (loc.device_count !== undefined ? loc.device_count : deviceCount(loc.id)) : 0;
+
+  if (devCount > 0) {
+    const relatedDevs = Array.isArray(allDevices) ? allDevices.filter(d => String(d.loc_id) === String(id)).map(d => d.nama || d.ip) : [];
+    const devListStr = relatedDevs.length > 0 ? ` (${relatedDevs.slice(0, 3).join(', ')}${relatedDevs.length > 3 ? '...' : ''})` : '';
+    showToast(`Tidak dapat menghapus "${locName}" karena masih digunakan oleh ${devCount} perangkat aktif${devListStr}. Pindahkan atau hapus perangkat terlebih dahulu.`, 'warning');
+    return;
+  }
+
+  if (!confirm(`Apakah Anda yakin ingin menghapus sub-kategori "${locName}"?`)) return;
 
   try {
     const res = await api.delete(`/api/devices/locations/${id}`);
@@ -5167,7 +5188,7 @@ async function deleteSubCat(id, name) {
       throw new Error(err.error || 'Gagal menghapus sub-kategori');
     }
 
-    showToast(`Sub-kategori "${name}" berhasil dihapus`, 'info');
+    showToast(`Sub-kategori "${locName}" berhasil dihapus`, 'info');
     await loadSubCategories();
     updateZonesModalStats();
     renderSubCategoriesTable();
