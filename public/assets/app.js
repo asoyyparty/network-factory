@@ -1780,10 +1780,6 @@ function renderOfflineDevices() {
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
               </button>` : ''}
             ${isAdmin ? `
-              <button class="icon-btn danger" title="Putus Sambungan Router (Kick)" onclick="openKickModal('${d.id}','${escapeHtml(d.mac||'')}','${escapeHtml(d.ip||'')}','${escapeHtml(d.nama)}')">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
-              </button>` : ''}
-            ${isAdmin ? `
               <button class="icon-btn" title="Ubah Perangkat" onclick="editDevice('${d.id}')">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
               </button>` : ''}
@@ -1854,10 +1850,6 @@ function renderOfflineDevices() {
           ${isAdmin ? `
             <button class="icon-btn" title="Ubah Data" onclick="editDevice('${d.id}')">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-            </button>` : ''}
-          ${isAdmin ? `
-            <button class="icon-btn danger" title="Putus Sambungan (Kick)" onclick="openKickModal('${d.id}','${escapeHtml(d.mac||'')}','${escapeHtml(d.ip||'')}','${escapeHtml(d.nama)}')">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
             </button>` : ''}
         </div>
       </div>
@@ -2183,10 +2175,6 @@ function renderDetail(){
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
               </button>` : ''}
             ${isAdmin ? `
-              <button class="icon-btn danger" title="Putus Sambungan Router (Kick)" onclick="openKickModal('${d.id}','${escapeHtml(d.mac||'')}','${escapeHtml(d.ip||'')}','${escapeHtml(d.nama)}')">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
-              </button>` : ''}
-            ${isAdmin ? `
               <button class="icon-btn" title="Pindah ke Lokasi Lain" onclick="openMoveModalForDevice('${d.id}')">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/><path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
               </button>` : ''}
@@ -2267,10 +2255,6 @@ function renderDetail(){
           ${isAdmin ? `
             <button class="icon-btn" title="Ubah Data" onclick="editDevice('${d.id}')">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-            </button>` : ''}
-          ${isAdmin ? `
-            <button class="icon-btn danger" title="Putus Sambungan (Kick)" onclick="openKickModal('${d.id}','${escapeHtml(d.mac||'')}','${escapeHtml(d.ip||'')}','${escapeHtml(d.nama)}')">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
             </button>` : ''}
           ${isAdmin ? `
             <button class="icon-btn danger" title="Hapus" onclick="deleteDevice('${d.id}')">
