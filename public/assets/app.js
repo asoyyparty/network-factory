@@ -757,31 +757,170 @@ function highlightActiveLoc(){
   });
 })();
 
-/* ── 10.5 MODEL 1 DASHBOARD GRID VIEW ──────────────────────────────── */
+/* ── 10.5 DASHBOARD GRID (Hallmark Telemetry Matrix) ───────────────── */
+let gridSortMode = 'faults';
+let gridViewMode = 'cards';
+
+function setGridSort(val) {
+  gridSortMode = val;
+  renderGridDashboard();
+}
+
+function setGridViewMode(mode) {
+  gridViewMode = mode;
+  renderGridDashboard();
+}
+
 function renderGridDashboard() {
   const panel = $('#grid-view-panel');
   if (!panel) return;
 
   const searchTerm = ($('#search-input') ? $('#search-input').value : '').toLowerCase().trim();
 
-  let locs = SEED_LOCATIONS;
+  let locs = (state.locations && state.locations.length > 0) ? [...state.locations] : [...SEED_LOCATIONS];
 
+  // Quick filter from sidebar if active
+  if (currentSidebarFilter === 'issues') {
+    locs = locs.filter(l => {
+      const agg = locationAggregateStatus(l.id);
+      return agg === 'alert' || agg === 'warn';
+    });
+  } else if (currentSidebarFilter === 'offline') {
+    locs = locs.filter(l => locationAggregateStatus(l.id) === 'alert');
+  }
+
+  // Search filter
   if (searchTerm) {
     locs = locs.filter(l => l.nama.toLowerCase().includes(searchTerm) || l.zone.toLowerCase().includes(searchTerm));
   }
 
+  // Calculate live summary statistics
+  let totalFaultSites = 0;
+  let totalMaintSites = 0;
+  let totalHealthySites = 0;
+
+  locs.forEach(loc => {
+    const agg = locationAggregateStatus(loc.id);
+    if (agg === 'alert') totalFaultSites++;
+    else if (agg === 'warn') totalMaintSites++;
+    else if (agg === 'ok') totalHealthySites++;
+  });
+
+  // Sorting
+  if (gridSortMode === 'faults') {
+    locs.sort((a, b) => {
+      const devsA = state.devices[a.id] || [];
+      const devsB = state.devices[b.id] || [];
+      const offA = devsA.filter(d => d.status === 'Offline').length;
+      const offB = devsB.filter(d => d.status === 'Offline').length;
+      if (offA !== offB) return offB - offA;
+
+      const warnA = devsA.filter(d => d.status === 'Maintenance').length;
+      const warnB = devsB.filter(d => d.status === 'Maintenance').length;
+      if (warnA !== warnB) return warnB - warnA;
+
+      return (devsB.length) - (devsA.length);
+    });
+  } else if (gridSortMode === 'az') {
+    locs.sort((a, b) => a.nama.localeCompare(b.nama));
+  } else if (gridSortMode === 'zone') {
+    locs.sort((a, b) => (a.zone || '').localeCompare(b.zone || '') || a.nama.localeCompare(b.nama));
+  } else if (gridSortMode === 'devs') {
+    locs.sort((a, b) => ((state.devices[b.id] || []).length) - ((state.devices[a.id] || []).length));
+  }
+
+  // Toolbar HTML
+  let html = `
+    <div class="grid-toolbar">
+      <div class="gt-left">
+        <span class="gt-tag">GRID // FLEET MONITOR</span>
+        <span class="gt-summary">${locs.length} SITES MONITORED</span>
+        ${totalFaultSites > 0 ? `<span class="gt-fault-badge">! ${totalFaultSites} FAULT</span>` : (totalMaintSites > 0 ? `<span class="gt-ok-badge" style="color:var(--warn);background:rgba(210,153,34,0.15);border-color:rgba(210,153,34,0.3)">▲ ${totalMaintSites} MAINT</span>` : `<span class="gt-ok-badge">● 100% OPERATIONAL</span>`)}
+      </div>
+      <div class="gt-right">
+        <div class="gt-control-group">
+          <label class="gt-lbl" for="gt-sort-select">SORT</label>
+          <select id="gt-sort-select" class="gt-select" onchange="setGridSort(this.value)">
+            <option value="faults" ${gridSortMode === 'faults' ? 'selected' : ''}>Prioritas Gangguan (Faults First)</option>
+            <option value="az" ${gridSortMode === 'az' ? 'selected' : ''}>Nama Ruangan (A - Z)</option>
+            <option value="zone" ${gridSortMode === 'zone' ? 'selected' : ''}>Kategori Area (Zone)</option>
+            <option value="devs" ${gridSortMode === 'devs' ? 'selected' : ''}>Jumlah Perangkat (Terbanyak)</option>
+          </select>
+        </div>
+        <div class="gt-view-toggle">
+          <button class="gt-btn ${gridViewMode === 'cards' ? 'active' : ''}" onclick="setGridViewMode('cards')" title="Tampilan Kartu Lengkap">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            <span>KARTU</span>
+          </button>
+          <button class="gt-btn ${gridViewMode === 'matrix' ? 'active' : ''}" onclick="setGridViewMode('matrix')" title="Tampilan Matriks Ringkas">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="4" height="4"></rect><rect x="10" y="3" width="4" height="4"></rect><rect x="17" y="3" width="4" height="4"></rect><rect x="3" y="10" width="4" height="4"></rect><rect x="10" y="10" width="4" height="4"></rect><rect x="17" y="10" width="4" height="4"></rect><rect x="3" y="17" width="4" height="4"></rect><rect x="10" y="17" width="4" height="4"></rect><rect x="17" y="17" width="4" height="4"></rect></svg>
+            <span>MATRIKS</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
   if (locs.length === 0) {
-    panel.innerHTML = `
-      <div class="empty-state">
-        <div class="big-icon">🔍</div>
-        <p>Tidak ada gedung atau lokasi yang cocok dengan "<b>${escapeHtml(searchTerm)}</b>"</p>
+    html += `
+      <div class="empty-state" style="padding:40px 20px; text-align:center; background:var(--panel-2); border:1px solid var(--border); border-radius:6px;">
+        <div style="font-size:24px; margin-bottom:8px;">🔍</div>
+        <p style="color:var(--text); font-weight:600; margin:0 0 4px;">Tidak ada gedung atau lokasi yang cocok</p>
+        <p style="color:var(--text-muted); font-size:12px; margin:0;">Coba sesuaikan kata kunci pencarian atau matikan filter.</p>
       </div>
     `;
+    panel.innerHTML = html;
     return;
   }
 
-  let html = '<div class="grid-layout">';
+  // Render Compact Matrix View
+  if (gridViewMode === 'matrix') {
+    html += '<div class="matrix-layout">';
+    locs.forEach(loc => {
+      const devs = state.devices[loc.id] || [];
+      const total = devs.length;
+      const online = devs.filter(d => d.status === 'Online').length;
+      const offline = devs.filter(d => d.status === 'Offline').length;
+      const maint = devs.filter(d => d.status === 'Maintenance').length;
 
+      let tileClass = 'is-idle';
+      let tagText = 'STANDBY';
+      let tagClass = 'idle';
+
+      if (total > 0) {
+        if (offline > 0) {
+          tileClass = 'is-alert';
+          tagText = `! ${offline} OFF`;
+          tagClass = 'alert';
+        } else if (maint > 0) {
+          tileClass = 'is-warn';
+          tagText = `▲ ${maint} MTC`;
+          tagClass = 'warn';
+        } else if (online === total) {
+          tileClass = 'is-ok';
+          tagText = '100% OK';
+          tagClass = 'ok';
+        }
+      }
+
+      html += `
+        <div class="matrix-tile ${tileClass}" onclick="openDetail('${loc.id}')" title="Klik untuk membuka detail ${escapeHtml(loc.nama)}">
+          <span class="mt-code">${loc.id.toUpperCase()} // ${escapeHtml(loc.zone)}</span>
+          <span class="mt-name">${escapeHtml(loc.nama)}</span>
+          <div class="mt-foot">
+            <span class="mt-status-tag ${tagClass}">${tagText}</span>
+            <span class="mt-count">[ ${online}/${total} ]</span>
+          </div>
+        </div>
+      `;
+    });
+    html += '</div>';
+    panel.innerHTML = html;
+    return;
+  }
+
+  // Render Detailed Cards View
+  html += '<div class="grid-layout">';
   locs.forEach(loc => {
     const devs = state.devices[loc.id] || [];
     const total = devs.length;
@@ -790,40 +929,64 @@ function renderGridDashboard() {
     const maint = devs.filter(d => d.status === 'Maintenance').length;
 
     let statusClass = 'status-idle';
-    let badgeHtml = '<span class="bcard-badge idle">⚪ Belum Ada Data</span>';
+    let badgeHtml = '<span class="bcard-badge idle">STANDBY</span>';
+    let gaugeClass = 'is-idle';
+    const healthPct = total > 0 ? Math.round((online / total) * 100) : 100;
 
     if (total > 0) {
       if (offline > 0) {
         statusClass = 'status-alert';
-        badgeHtml = `<span class="bcard-badge alert">⚠️ ${offline} Down</span>`;
+        gaugeClass = 'is-alert';
+        badgeHtml = `<span class="bcard-badge alert">! ${offline} CRITICAL</span>`;
       } else if (maint > 0) {
         statusClass = 'status-warn';
-        badgeHtml = `<span class="bcard-badge warn">🛠️ Maintenance</span>`;
+        gaugeClass = 'is-warn';
+        badgeHtml = `<span class="bcard-badge warn">▲ ${maint} MAINT</span>`;
       } else if (online === total) {
         statusClass = 'status-ok';
-        badgeHtml = `<span class="bcard-badge ok">✓ Semua Online (${online})</span>`;
+        gaugeClass = 'is-ok';
+        badgeHtml = `<span class="bcard-badge ok">● 100% OPERATIONAL</span>`;
       } else {
         statusClass = 'status-idle';
-        badgeHtml = `<span class="bcard-badge idle">⚪ Partial Online</span>`;
+        gaugeClass = 'is-idle';
+        badgeHtml = `<span class="bcard-badge idle">● PARTIAL</span>`;
       }
     }
+
+    // Ping average calculation
+    const pingDevs = devs.filter(d => d.status === 'Online' && d.last_ping_ms != null && !isNaN(d.last_ping_ms));
+    const avgPing = pingDevs.length > 0 ? Math.round(pingDevs.reduce((acc, d) => acc + Number(d.last_ping_ms), 0) / pingDevs.length) : null;
+    const avgPingText = avgPing != null ? `${avgPing}ms` : '--';
 
     const previewDevs = devs.slice(0, 3);
     let devListHtml = '';
 
     if (previewDevs.length > 0) {
-      devListHtml = previewDevs.map(d => `
-        <div class="bcard-dev-item">
-          <div class="bcard-dev-info">
-            <span class="bcard-dev-dot ${d.status === 'Online' ? 'online' : 'offline'}"></span>
-            <span class="bcard-dev-name">${escapeHtml(d.nama)}</span>
+      devListHtml = previewDevs.map(d => {
+        const isOffline = d.status === 'Offline';
+        const isMaint = d.status === 'Maintenance';
+        const isOnline = d.status === 'Online';
+        const dotStatus = isOffline ? 'offline' : (isMaint ? 'maintenance' : (isOnline ? 'online' : 'unknown'));
+        const latText = d.last_ping_ms != null ? `[ ${d.last_ping_ms}ms ]` : '';
+
+        return `
+          <div class="tcard-dev-row ${isOffline ? 'alert' : ''}">
+            <div class="tcard-dev-lead">
+              <span class="tcard-dev-dot s-${dotStatus}"></span>
+              <span class="tcard-dev-name" title="${escapeHtml(d.nama)}">${escapeHtml(d.nama)}</span>
+            </div>
+            <div class="tcard-dev-trail">
+              <span class="tcard-dev-ip">${escapeHtml(d.ip || 'NO-IP')}</span>
+              ${latText ? `<span class="tcard-dev-lat">${latText}</span>` : ''}
+              <span class="tcard-dev-tag s-${dotStatus}">${(d.status || 'UNKNOWN').toUpperCase()}</span>
+            </div>
           </div>
-          <span class="bcard-dev-ip">${escapeHtml(d.ip || 'No IP')} ${d.last_ping_ms != null ? `(${d.last_ping_ms}ms)` : ''}</span>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     } else {
-      devListHtml = '<div style="font-size:12px;color:var(--text-muted);font-style:italic;padding:4px 0">Belum ada perangkat terdaftar</div>';
+      devListHtml = '<div style="font-size:11px; color:var(--text-muted); font-family:var(--mono); padding:8px 0; text-align:center;">// Belum ada perangkat terpasang</div>';
     }
+
     const zoneObj = ZONES.find(z => z.key === loc.zone);
     const zoneLabel = zoneObj ? zoneObj.label : loc.zone;
 
@@ -831,30 +994,38 @@ function renderGridDashboard() {
       <div class="bcard ${statusClass}">
         <div class="bcard-head">
           <div>
-            <span class="bcard-zone">${escapeHtml(zoneLabel)}</span>
+            <div class="bcard-meta">
+              <span class="bcard-zone">${escapeHtml(zoneLabel)}</span>
+              <span class="bcard-id-tag">LOC // ${loc.id.toUpperCase()}</span>
+            </div>
             <h3 class="bcard-title">${escapeHtml(loc.nama)}</h3>
           </div>
           ${badgeHtml}
         </div>
-        <div class="bcard-stats">
-          <div>
-            <div class="bstat-val ok">${online}</div>
-            <div class="bstat-lbl">Online</div>
-          </div>
-          <div>
-            <div class="bstat-val alert">${offline}</div>
-            <div class="bstat-lbl">Offline</div>
-          </div>
-          <div>
-            <div class="bstat-val total">${total}</div>
-            <div class="bstat-lbl">Total</div>
-          </div>
+
+        <div class="tcard-gauge-wrap" title="Kesehatan Sistem: ${healthPct}%">
+          <div class="tcard-gauge-bar ${gaugeClass}" style="width:${healthPct}%"></div>
         </div>
+
+        <div class="tcard-metrics">
+          <div class="tcm-item"><span class="tcm-k">NODES</span><b class="tcm-v">${total}</b></div>
+          <div class="tcm-sep">│</div>
+          <div class="tcm-item"><span class="tcm-k">ONLINE</span><b class="tcm-v ok">${online}</b></div>
+          <div class="tcm-sep">│</div>
+          <div class="tcm-item"><span class="tcm-k">FAULT</span><b class="tcm-v ${offline > 0 ? 'alert' : ''}">${offline}</b></div>
+          <div class="tcm-sep">│</div>
+          <div class="tcm-item"><span class="tcm-k">AVG LAT</span><b class="tcm-v">${avgPingText}</b></div>
+        </div>
+
         <div class="bcard-devices">
           ${devListHtml}
         </div>
+
         <div class="bcard-foot">
-          <button class="bcard-btn" onclick="openDetail('${loc.id}')">Lihat Detail Gedung →</button>
+          <button class="bcard-btn" onclick="openDetail('${loc.id}')">
+            <span>BUKA DIAGNOSTIK & KONTROL</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </button>
         </div>
       </div>
     `;

@@ -247,179 +247,500 @@
   padding: 24px 32px;
 }
 
-.grid-layout {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 20px;
+/* ── 10.5 DASHBOARD GRID (Hallmark Industrial Telemetry Matrix) ───── */
+#grid-view-panel {
+  padding: 18px 24px;
+  overflow-y: auto;
+  height: 100%;
 }
 
+.grid-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  margin-bottom: 16px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.gt-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+}
+.gt-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+}
+.gt-summary {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.gt-fault-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--alert);
+  border: 1px solid rgba(248, 81, 73, 0.35);
+  font-variant-numeric: tabular-nums;
+}
+.gt-ok-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--ok);
+  border: 1px solid rgba(63, 185, 80, 0.3);
+}
+
+.gt-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.gt-control-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+}
+.gt-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-ink-3);
+  letter-spacing: 0.04em;
+}
+.gt-select {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  font-family: var(--sans);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.gt-select:focus {
+  border-color: var(--color-focus);
+}
+.gt-view-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.gt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  background: var(--panel);
+  border: none;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.gt-btn:hover {
+  color: var(--text);
+  background: var(--color-paper-hover);
+}
+.gt-btn.active {
+  background: var(--panel-2);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.grid-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 14px;
+}
+
+/* Telemetry Instrument Card */
 .bcard {
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 18px 20px;
+  border-left: 3px solid transparent;
+  border-radius: 6px;
+  padding: 14px 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
   box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.4);
   position: relative;
 }
-
 .bcard:hover {
   transform: translateY(-2px);
-  border-color: #444c56;
+  border-color: var(--color-rule-focus);
   box-shadow: 0 10px 24px -4px rgba(0, 0, 0, 0.6);
 }
+.bcard:active {
+  transform: translateY(0);
+}
 
-.bcard.status-ok    { border-top: 2px solid var(--ok); }
-.bcard.status-warn  { border-top: 2px solid var(--warn); }
-.bcard.status-alert { border-top: 2px solid var(--alert); }
-.bcard.status-idle  { border-top: 2px solid var(--idle); }
+.bcard.status-ok {
+  border-left-color: var(--ok);
+}
+.bcard.status-warn {
+  border-left-color: var(--warn);
+  background: linear-gradient(to right, rgba(210, 153, 34, 0.04), var(--panel) 15%);
+}
+.bcard.status-alert {
+  border-left-color: var(--alert);
+  background: linear-gradient(to right, rgba(248, 81, 73, 0.06), var(--panel) 25%);
+}
+.bcard.status-idle {
+  border-left-color: var(--idle);
+}
 
 .bcard-head {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 12px;
+  gap: 10px;
 }
-
-.bcard-title {
-  font-size: 16px;
-  font-weight: 700;
-  color: #fff;
-  margin: 0 0 4px;
-  line-height: 1.2;
-}
-
-.bcard-zone {
+.bcard-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-family: var(--mono);
-  font-size: 10.5px;
+  margin-bottom: 3px;
+}
+.bcard-zone {
+  font-size: 9.5px;
+  font-weight: 700;
   color: var(--accent);
-  background: rgba(2, 132, 199, 0.15);
-  padding: 2px 8px;
-  border-radius: 4px;
-  border: 1px solid rgba(56, 189, 248, 0.2);
-  display: inline-block;
+  letter-spacing: 0.05em;
+}
+.bcard-id-tag {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--color-ink-3);
+  background: var(--panel-2);
+  padding: 1px 4px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+.bcard-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
 }
 
 .bcard-badge {
   font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 20px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.bcard-badge.ok { background: rgba(52, 211, 153, 0.15); color: var(--ok); border: 1px solid rgba(52, 211, 153, 0.3); }
-.bcard-badge.warn { background: rgba(251, 191, 36, 0.15); color: var(--warn); border: 1px solid rgba(251, 191, 36, 0.3); }
-.bcard-badge.alert { background: rgba(248, 113, 113, 0.15); color: var(--alert); border: 1px solid rgba(248, 113, 113, 0.3); }
-.bcard-badge.idle { background: rgba(71, 85, 105, 0.2); color: var(--text-muted); border: 1px solid rgba(71, 85, 105, 0.3); }
-
-.bcard-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
-  background: rgba(31, 41, 55, 0.5);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 10px;
-  text-align: center;
-}
-
-.bstat-val {
-  font-family: var(--mono);
-  font-size: 16px;
-  font-weight: 700;
-}
-.bstat-val.ok { color: var(--ok); }
-.bstat-val.alert { color: var(--alert); }
-.bstat-val.total { color: #fff; }
-
-.bstat-lbl {
   font-size: 10px;
-  font-family: var(--mono);
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.bcard-badge.ok {
+  background: rgba(63, 185, 80, 0.12);
+  color: var(--ok);
+  border: 1px solid rgba(63, 185, 80, 0.25);
+}
+.bcard-badge.alert {
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--alert);
+  border: 1px solid rgba(248, 81, 73, 0.35);
+}
+.bcard-badge.warn {
+  background: rgba(210, 153, 34, 0.12);
+  color: var(--warn);
+  border: 1px solid rgba(210, 153, 34, 0.3);
+}
+.bcard-badge.idle {
+  background: var(--panel-2);
   color: var(--text-muted);
-  text-transform: uppercase;
-  margin-top: 2px;
+  border: 1px solid var(--border);
 }
 
-.bcard-devices {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+/* Health Gauge Segment */
+.tcard-gauge-wrap {
+  width: 100%;
+  height: 4px;
+  background: var(--panel-2);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+  margin: 1px 0;
+}
+.tcard-gauge-bar {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+.tcard-gauge-bar.is-ok {
+  background: var(--ok);
+}
+.tcard-gauge-bar.is-alert {
+  background: var(--alert);
+}
+.tcard-gauge-bar.is-warn {
+  background: var(--warn);
 }
 
-.bcard-dev-item {
+/* Tabular Metrics Strip */
+.tcard-metrics {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 6px 10px;
-  background: rgba(17, 24, 39, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.03);
-  border-radius: 6px;
-  font-size: 12.5px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 10.5px;
 }
-
-.bcard-dev-info {
+.tcm-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 5px;
+}
+.tcm-k {
+  color: var(--color-ink-3);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.tcm-v {
+  color: var(--text);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.tcm-v.ok { color: var(--ok); }
+.tcm-v.alert { color: var(--alert); }
+.tcm-v.warn { color: var(--warn); }
+.tcm-sep {
+  color: var(--color-rule);
+  font-size: 10px;
 }
 
-.bcard-dev-dot {
+/* Device Pulse Roster */
+.bcard-devices {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tcard-dev-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 8px;
+  background: var(--color-paper);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11.5px;
+  transition: border-color 0.12s ease;
+}
+.tcard-dev-row.alert {
+  border-color: rgba(248, 81, 73, 0.35);
+  background: rgba(248, 81, 73, 0.05);
+}
+.tcard-dev-lead {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  flex: 1;
+}
+.tcard-dev-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
+  flex-shrink: 0;
 }
-.bcard-dev-dot.online { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
-.bcard-dev-dot.offline { background: var(--alert); }
-
-.bcard-dev-name {
+.tcard-dev-dot.s-online {
+  background: var(--ok);
+  box-shadow: 0 0 0 1.5px rgba(63, 185, 80, 0.25);
+}
+.tcard-dev-dot.s-offline {
+  background: var(--alert);
+  box-shadow: 0 0 0 1.5px rgba(248, 81, 73, 0.3);
+}
+.tcard-dev-dot.s-maintenance {
+  background: var(--warn);
+  box-shadow: 0 0 0 1.5px rgba(210, 153, 34, 0.25);
+}
+.tcard-dev-dot.s-unknown {
+  background: var(--idle);
+}
+.tcard-dev-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--text);
   font-weight: 500;
+  font-size: 11.5px;
 }
-
-.bcard-dev-ip {
+.tcard-dev-trail {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
   font-family: var(--mono);
-  font-size: 11px;
-  color: var(--text-muted);
+  font-size: 10px;
+}
+.tcard-dev-ip {
+  color: var(--color-ink-3);
+}
+.tcard-dev-lat {
+  color: var(--accent);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.tcard-dev-tag {
+  font-size: 8.5px;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+.tcard-dev-tag.s-online {
+  color: var(--ok);
+  background: rgba(63, 185, 80, 0.1);
+}
+.tcard-dev-tag.s-offline {
+  color: var(--alert);
+  background: rgba(248, 81, 73, 0.15);
+}
+.tcard-dev-tag.s-maintenance {
+  color: var(--warn);
+  background: rgba(210, 153, 34, 0.15);
 }
 
 .bcard-foot {
-  margin-top: 4px;
-  display: flex;
-  justify-content: flex-end;
+  margin-top: 2px;
 }
-
 .bcard-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 12px;
   background: var(--panel-2);
   border: 1px solid var(--border);
-  color: var(--accent);
-  padding: 8px 14px;
-  border-radius: 6px;
+  border-radius: 4px;
+  color: var(--text-muted);
   font-family: var(--mono);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  width: 100%;
-  text-align: center;
-  transition: all 0.2s;
+  transition: all 0.15s ease;
+}
+.bcard-btn:hover {
+  background: var(--color-paper-hover);
+  border-color: var(--color-rule-focus);
+  color: var(--text);
+}
+.bcard-btn:active {
+  transform: translateY(1px);
 }
 
-.bcard-btn:hover {
-  background: var(--accent);
-  color: #04202A;
-  border-color: var(--accent);
+/* Compact Matrix Mode */
+.matrix-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 8px;
+}
+.matrix-tile {
+  padding: 8px 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+  border-left: 3px solid transparent;
+}
+.matrix-tile:hover {
+  border-color: var(--color-rule-focus);
+  background: var(--color-paper-hover);
+  transform: translateY(-1px);
+}
+.matrix-tile:active {
+  transform: translateY(0);
+}
+.matrix-tile.is-alert {
+  border-left-color: var(--alert);
+  background: rgba(248, 81, 73, 0.05);
+}
+.matrix-tile.is-warn {
+  border-left-color: var(--warn);
+}
+.matrix-tile.is-ok {
+  border-left-color: var(--ok);
+}
+.mt-code {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.mt-name {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mt-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 2px;
+  font-family: var(--mono);
+  font-size: 10px;
+}
+.mt-status-tag {
+  font-weight: 700;
+  font-size: 9.5px;
+}
+.mt-status-tag.ok { color: var(--ok); }
+.mt-status-tag.alert { color: var(--alert); }
+.mt-status-tag.warn { color: var(--warn); }
+.mt-status-tag.idle { color: var(--text-muted); }
+.mt-count {
+  color: var(--color-ink-3);
+  font-variant-numeric: tabular-nums;
 }
 
 @media (max-width: 768px) {
-  #grid-view-panel { padding: 16px; }
-  .grid-layout { grid-template-columns: 1fr; }
+  #grid-view-panel { padding: 12px 10px; }
+  .grid-layout { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .matrix-layout { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+  .grid-toolbar { padding: 8px 10px; }
+  .gt-summary { display: none; }
+  .tcard-metrics { font-size: 9.5px; padding: 5px 8px; }
+  .bcard-btn { min-height: 44px; }
 }
 
 /* ── FUTURISTIC SCI-FI RADIAL TOPOLOGY SVG ──────────────────────────────── */
@@ -723,40 +1044,7 @@
 .toast-error { border-color: var(--alert); box-shadow: 0 0 20px rgba(248,113,113,0.2), 0 10px 30px rgba(0,0,0,0.5); }
 .toast-error .toast-progress { background: var(--alert); }
 
-/* ══ BCARD ENHANCEMENTS ══════════════════════════════════════════════ */
-.bcard {
-  position: relative;
-  overflow: hidden;
-}
-.bcard::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse at top right, rgba(56,189,248,0.06) 0%, transparent 60%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  pointer-events: none;
-}
-.bcard:hover::before { opacity: 1; }
-
-.bcard.status-alert::before {
-  background: radial-gradient(ellipse at top right, rgba(248,113,113,0.08) 0%, transparent 60%);
-}
-.bcard.status-ok::before {
-  background: radial-gradient(ellipse at top right, rgba(52,211,153,0.07) 0%, transparent 60%);
-}
-.bcard.status-warn::before {
-  background: radial-gradient(ellipse at top right, rgba(251,191,36,0.07) 0%, transparent 60%);
-}
-
-/* Alert card pulse */
-@keyframes alertCardPulse {
-  0%,100% { border-left-color: var(--alert); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2); }
-  50%      { border-left-color: #FCA5A5; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2), 0 0 15px rgba(248,113,113,0.2); }
-}
-.bcard.status-alert {
-  animation: alertCardPulse 3s ease-in-out infinite;
-}
+/* (bcard rules standardized in Section 10.5 above) */
 
 /* ══ SIDEBAR LOC-ITEM ENHANCEMENTS ══════════════════════════════════ */
 .loc-item {
