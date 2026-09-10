@@ -134,6 +134,50 @@ async function initializeDB() {
     }
   }
 
+  // Create routers table for multi-router scanning & control
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS routers (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      host VARCHAR(100) NOT NULL,
+      port INT DEFAULT 22,
+      username VARCHAR(100) NOT NULL,
+      password VARCHAR(255) DEFAULT '',
+      router_type VARCHAR(50) DEFAULT 'mikrotik',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Create blocked_devices table for MAC blacklisting
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS blocked_devices (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      device_id VARCHAR(64) NULL,
+      router_id INT NOT NULL,
+      mac VARCHAR(32) NOT NULL,
+      ip VARCHAR(45) NULL,
+      device_name VARCHAR(255) DEFAULT 'Perangkat',
+      reason TEXT NULL,
+      blocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  // Seed default router from .env if empty
+  const [routersCount] = await pool.query('SELECT COUNT(*) as count FROM routers');
+  if (routersCount[0].count === 0 && process.env.MIKROTIK_HOST) {
+    await pool.query(`
+      INSERT INTO routers (name, host, port, username, password, router_type)
+      VALUES (?, ?, ?, ?, ?, 'mikrotik')
+    `, [
+      'Router Utama (Core)',
+      process.env.MIKROTIK_HOST,
+      parseInt(process.env.MIKROTIK_PORT) || 22,
+      process.env.MIKROTIK_USER || 'admin',
+      process.env.MIKROTIK_PASS || ''
+    ]);
+    console.log(`[DB] Router default terdaftar: ${process.env.MIKROTIK_HOST}`);
+  }
+
   // Seed default device OS if empty
   const [osCount] = await pool.query('SELECT COUNT(*) as count FROM device_os');
   if (osCount[0].count === 0) {
@@ -141,6 +185,7 @@ async function initializeDB() {
       ['generic', 'Linux / Generic'],
       ['cisco', 'Cisco IOS'],
       ['mikrotik', 'MikroTik RouterOS'],
+      ['openwrt', 'OpenWrt AP'],
       ['windows', 'Windows OS']
     ];
     for (const [id, name] of defaultOS) {

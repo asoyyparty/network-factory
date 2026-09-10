@@ -4,7 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Peta Jaringan Pabrik</title>
-<link rel="icon" type="image/png" href="/assets/cba-logo.png">
+<link rel="icon" type="image/png" href="/assets/logo.png?v=2.0">
+<link rel="shortcut icon" type="image/png" href="/assets/logo.png?v=2.0">
+<link rel="apple-touch-icon" href="/assets/logo.png?v=2.0">
 <meta name="description" content="Sistem monitoring dan kontrol perangkat jaringan pabrik secara realtime.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -351,6 +353,107 @@
 
   /* TOAST — see style.css for full definition */
 
+  /* Category & Subcategory UI Polish */
+  .cat-tabs-segmented {
+    display: inline-flex;
+    background: rgba(15, 23, 42, 0.9);
+    padding: 4px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    gap: 3px;
+  }
+  .cat-tab-pill {
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .cat-tab-pill:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.05);
+  }
+  .cat-tab-pill.active {
+    background: var(--accent);
+    color: #04202A;
+    font-weight: 700;
+    box-shadow: 0 2px 8px var(--accent-glow);
+  }
+
+  .form-card-box {
+    background: linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(17, 24, 39, 0.95) 100%);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-top: 3px solid var(--accent);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  }
+
+  .form-card-title {
+    margin: 0 0 12px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .table-search-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+
+  .modal-table-container {
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: rgba(15, 23, 42, 0.6);
+    overflow: hidden;
+  }
+
+  .action-btn-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    gap: 4px;
+  }
+  .action-btn-pill.edit {
+    background: rgba(56, 189, 248, 0.1);
+    color: #38BDF8;
+    border-color: rgba(56, 189, 248, 0.3);
+  }
+  .action-btn-pill.edit:hover {
+    background: #38BDF8;
+    color: #04202A;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+  }
+  .action-btn-pill.delete {
+    background: rgba(248, 113, 113, 0.1);
+    color: #F87171;
+    border-color: rgba(248, 113, 113, 0.3);
+  }
+  .action-btn-pill.delete:hover {
+    background: #F87171;
+    color: #fff;
+    box-shadow: 0 0 10px rgba(248, 113, 113, 0.4);
+  }
+
   /* SCROLLBAR */
   ::-webkit-scrollbar{width:8px;height:8px;}
   ::-webkit-scrollbar-track{background:transparent;}
@@ -425,7 +528,7 @@
     .modal-overlay { align-items: flex-end; padding: 0; }
   }
 </style>
-<link rel="stylesheet" href="/assets/style.css?v=1.2">
+<link rel="stylesheet" href="/assets/style.css?v=1.3.0">
 </head>
 <body>
 <div id="app">
@@ -453,6 +556,10 @@
       <div class="search-box">
         <input type="search" id="search-input" name="q" placeholder="Cari gedung / ruang..." autocomplete="off" spellcheck="false">
       </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 16px 4px; border-bottom:1px solid rgba(255,255,255,0.05)">
+        <span style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.8px">Kategori Area Gedung</span>
+        <button class="icon-btn admin-only" title="Kelola Kategori / Area Gedung" onclick="openZonesModal()" style="font-size:12px; padding:2px 6px; background:rgba(255,255,255,0.05)">⚙️ Edit</button>
+      </div>
       <div class="zone-list" id="zone-list"></div>
     </aside>
     <main>
@@ -463,6 +570,8 @@
         <button class="tab-btn" data-tab="offline" id="tab-offline-btn">⚠️ Perangkat Offline</button>
         <button class="tab-btn" data-tab="report" id="tab-report-btn">📈 Laporan SLA</button>
         <button class="tab-btn" data-tab="audit" id="tab-audit-btn" style="display:none;">📜 Audit Trail</button>
+        <button class="tab-btn" data-tab="users" id="tab-users-btn" style="display:none;">👥 Kelola User</button>
+        <button class="tab-btn" data-tab="routers" id="tab-routers-btn">📡 Kelola Router & Klien</button>
         <button class="tab-btn" data-tab="manage-topo">⚙️ Kelola Topologi</button>
       </div>
       <div class="view">
@@ -530,6 +639,14 @@
         <!-- Audit Trail -->
         <div class="view-panel" id="view-audit">
           <div id="audit-panel" style="padding:24px 32px; overflow-y:auto; height:100%"></div>
+        </div>
+        <!-- Kelola User -->
+        <div class="view-panel" id="view-users">
+          <div id="users-panel" style="padding:24px 32px; overflow-y:auto; height:100%"></div>
+        </div>
+        <!-- Kelola Router & Klien SSH -->
+        <div class="view-panel" id="view-routers">
+          <div id="routers-view-panel" style="padding:24px 32px; overflow-y:auto; height:100%"></div>
         </div>
       </div>
     </main>
@@ -620,6 +737,259 @@
   </div>
 </div>
 
+<!-- ── MODAL: Add User ── -->
+<div class="modal-overlay" id="add-user-modal" data-modal="adduser">
+  <div class="modal" style="max-width:480px; width:95%">
+    <button class="modal-close" id="close-add-user-btn" onclick="closeAddUserModal()" title="Tutup">✕</button>
+    <p class="modal-title">👤 Tambah Pengguna Baru</p>
+    <div class="pwd-fields">
+      <div class="field">
+        <label>Username</label>
+        <input type="text" id="au-username" placeholder="cth: operator1" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Password Default (min. 6 karakter)</label>
+        <div style="display:flex;gap:6px">
+          <input type="password" id="au-password" placeholder="••••••••" autocomplete="new-password" style="flex:1">
+          <button type="button" class="icon-btn" onclick="togglePasswordVisibility('au-password', this)" title="Tampilkan Password" style="flex-shrink:0;height:40px;width:40px;display:flex;align-items:center;justify-content:center">👁️</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Role / Hak Akses</label>
+        <select id="au-role">
+          <option value="viewer">Viewer (Hanya Melihat & Monitoring)</option>
+          <option value="admin">Admin (Akses Penuh & Kontrol Device)</option>
+        </select>
+      </div>
+      <p id="au-err" style="color:var(--alert);font-family:var(--mono);font-size:12px;margin:0"></p>
+      <div class="form-actions">
+        <button class="btn-secondary" onclick="closeAddUserModal()">Batal</button>
+        <button class="btn-primary" onclick="submitAddUser()">Simpan User</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: Reset User Password ── -->
+<div class="modal-overlay" id="reset-user-modal" data-modal="resetuser">
+  <div class="modal" style="max-width:460px; width:95%">
+    <button class="modal-close" id="close-reset-user-btn" onclick="closeResetUserModal()" title="Tutup">✕</button>
+    <p class="modal-title" id="ru-modal-title">🔑 Reset Password User</p>
+    <input type="hidden" id="ru-user-id">
+    <div class="pwd-fields">
+      <div class="field">
+        <label>Password Baru (min. 6 karakter)</label>
+        <div style="display:flex;gap:6px">
+          <input type="password" id="ru-password" placeholder="••••••••" autocomplete="new-password" style="flex:1">
+          <button type="button" class="icon-btn" onclick="togglePasswordVisibility('ru-password', this)" title="Tampilkan Password" style="flex-shrink:0;height:40px;width:40px;display:flex;align-items:center;justify-content:center">👁️</button>
+        </div>
+      </div>
+      <div class="field" style="margin-top:10px;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:normal;color:var(--text)">
+          <input type="checkbox" id="ru-must-change" checked style="width:auto"> Wajibkan ganti password saat login berikutnya
+        </label>
+      </div>
+      <p id="ru-err" style="color:var(--alert);font-family:var(--mono);font-size:12px;margin:0"></p>
+      <div class="form-actions">
+        <button class="btn-secondary" onclick="closeResetUserModal()">Batal</button>
+        <button class="btn-primary" onclick="submitResetUserPwd()">Reset Password</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: Add/Edit Router/AP ── -->
+<div class="modal-overlay" id="router-form-modal" data-modal="routerform">
+  <div class="modal" style="max-width:540px; width:95%">
+    <button class="modal-close" onclick="closeRouterFormModal()" title="Tutup">✕</button>
+    <p class="modal-title" id="rf-modal-title">📡 Tambah Router / AP Baru</p>
+    <form id="router-form" onsubmit="event.preventDefault(); submitRouterForm();">
+      <input type="hidden" id="rf-id">
+      <div class="form-grid" style="grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="field span-2">
+          <label>Nama Router / AP</label>
+          <input type="text" id="rf-name" placeholder="cth: AP Wi-Fi Gedung B" required>
+        </div>
+        <div class="field">
+          <label>Host / IP Address</label>
+          <input type="text" id="rf-host" placeholder="cth: 192.168.2.1" required>
+        </div>
+        <div class="field">
+          <label>SSH Port</label>
+          <input type="number" id="rf-port" value="22" placeholder="22" required>
+        </div>
+        <div class="field">
+          <label>Username SSH</label>
+          <input type="text" id="rf-user" placeholder="admin" required>
+        </div>
+        <div class="field">
+          <label>Password SSH</label>
+          <div style="display:flex;gap:6px">
+            <input type="password" id="rf-pass" placeholder="••••••••" style="flex:1">
+            <button type="button" class="icon-btn" onclick="togglePasswordVisibility('rf-pass', this)" title="Tampilkan Password" style="flex-shrink:0;height:40px;width:40px;display:flex;align-items:center;justify-content:center">👁️</button>
+          </div>
+        </div>
+        <div class="field span-2">
+          <label>Tipe OS Router / AP</label>
+          <select id="rf-type">
+            <option value="mikrotik">MikroTik RouterOS</option>
+            <option value="openwrt">OpenWrt / Linux AP (Dropbear/OpenSSH)</option>
+            <option value="cisco">Cisco IOS</option>
+            <option value="generic">Generic / Linux AP Lainnya</option>
+          </select>
+        </div>
+      </div>
+      <p id="rf-err" style="color:var(--alert);font-family:var(--mono);font-size:12px;margin:10px 0 0"></p>
+      <div class="form-actions" style="margin-top:20px;">
+        <button type="button" class="btn-secondary" onclick="closeRouterFormModal()">Batal</button>
+        <button type="submit" class="btn-primary">Simpan Router</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── MODAL: Kelola Kategori & Sub-Kategori Gedung ── -->
+<div class="modal-overlay" id="zones-modal">
+  <div class="modal" style="max-width:880px; width:95%; border:1px solid rgba(56, 189, 248, 0.25); background:#0F172A; box-shadow:0 25px 50px -12px rgba(0,0,0,0.7)">
+    <button class="modal-close" onclick="closeZonesModal()" title="Tutup">✕</button>
+    
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--border); padding-bottom:14px; flex-wrap:wrap; gap:12px">
+      <div>
+        <h3 style="margin:0; font-size:18px; font-weight:700; color:#fff; display:flex; align-items:center; gap:8px">
+          🏷️ Kelola Kategori & Sub-Kategori Gedung
+        </h3>
+        <p style="margin:4px 0 0; font-size:12px; color:var(--text-muted)">Kelola hirarki area gedung utama dan lokasi/ruangan pabrik</p>
+      </div>
+      <div class="cat-tabs-segmented">
+        <button class="cat-tab-pill active" id="btn-tab-main-cat" onclick="switchCategoryTab('main')">📂 Kategori Utama</button>
+        <button class="cat-tab-pill" id="btn-tab-sub-cat" onclick="switchCategoryTab('sub')">📌 Sub-Kategori / Ruangan</button>
+      </div>
+    </div>
+
+    <!-- ══ TAB 1: KATEGORI UTAMA ══ -->
+    <div id="cat-tab-main">
+      <div class="table-search-bar">
+        <span style="font-size:12.5px; color:var(--text-muted)">Daftar kelompok gedung utama (zone / area).</span>
+        <button class="btn-primary" style="padding:7px 14px; font-size:12px; display:flex; align-items:center; gap:6px" onclick="openAddZoneForm()">
+          <span>＋</span> Tambah Kategori Utama
+        </button>
+      </div>
+
+      <!-- Form Kategori Utama -->
+      <div id="zone-form-box" class="form-card-box" style="display:none">
+        <h4 id="zone-form-title" class="form-card-title">＋ Tambah Kategori Utama</h4>
+        <input type="hidden" id="zf-id">
+        <div class="form-grid" style="grid-template-columns: 1fr 2fr 100px; gap:12px">
+          <div class="field">
+            <label style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:4px">Kode Unique (Key)</label>
+            <input type="text" id="zf-key" placeholder="cth: GEDUNG_K" style="text-transform:uppercase; background:var(--bg); border:1px solid var(--border); color:#fff; padding:8px 12px; border-radius:6px" required>
+          </div>
+          <div class="field">
+            <label style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:4px">Nama / Label Kategori</label>
+            <input type="text" id="zf-label" placeholder="cth: Gedung K (Lab Baru)" style="background:var(--bg); border:1px solid var(--border); color:#fff; padding:8px 12px; border-radius:6px" required>
+          </div>
+          <div class="field">
+            <label style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:4px">Urutan</label>
+            <input type="number" id="zf-order" value="0" placeholder="0" style="background:var(--bg); border:1px solid var(--border); color:#fff; padding:8px 12px; border-radius:6px">
+          </div>
+        </div>
+        <p id="zf-err" style="color:var(--alert); font-size:12px; margin:8px 0 0; font-family:var(--mono)"></p>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px; border-top:1px solid rgba(255,255,255,0.06); padding-top:10px">
+          <button type="button" class="btn-secondary" style="padding:6px 14px; font-size:12px" onclick="closeZoneForm()">Batal</button>
+          <button type="button" class="btn-primary" style="padding:6px 16px; font-size:12px" onclick="submitZoneForm()">Simpan Kategori</button>
+        </div>
+      </div>
+
+      <!-- Tabel Kategori Utama -->
+      <div class="modal-table-container">
+        <div class="device-table-wrap" style="max-height:360px; overflow-y:auto; margin:0">
+          <table class="device-table">
+            <thead>
+              <tr>
+                <th style="width:140px">Kode (Key)</th>
+                <th>Nama / Label Kategori</th>
+                <th style="width:80px; text-align:center">Urutan</th>
+                <th style="width:150px">Jumlah Sub-Kategori</th>
+                <th style="width:140px; text-align:right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="zones-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ TAB 2: SUB-KATEGORI / LOKASI ══ -->
+    <div id="cat-tab-sub" style="display:none">
+      <div class="table-search-bar">
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; flex:1">
+          <div style="display:flex; align-items:center; gap:6px">
+            <span style="font-size:12px; color:var(--text-muted); font-weight:600">Filter:</span>
+            <select id="subcat-filter-zone" onchange="renderSubCategoriesTable()" style="padding:7px 12px; font-size:12.5px; background:var(--panel-2); color:#fff; border:1px solid var(--border); border-radius:6px; min-width:200px">
+              <option value="ALL">-- Semua Kategori Utama --</option>
+            </select>
+          </div>
+          <div style="position:relative; flex:1; max-width:260px">
+            <input type="search" id="subcat-search-input" onkeyup="renderSubCategoriesTable()" placeholder="🔍 Cari sub-kategori..." style="width:100%; padding:7px 12px; font-size:12.5px; background:var(--panel-2); border:1px solid var(--border); color:#fff; border-radius:6px">
+          </div>
+        </div>
+        <button class="btn-primary" style="padding:7px 14px; font-size:12px; display:flex; align-items:center; gap:6px" onclick="openAddSubCatForm()">
+          <span>＋</span> Tambah Sub-Kategori Baru
+        </button>
+      </div>
+
+      <!-- Form Sub-Kategori -->
+      <div id="subcat-form-box" class="form-card-box" style="display:none">
+        <h4 id="subcat-form-title" class="form-card-title">＋ Tambah Sub-Kategori / Ruangan Baru</h4>
+        <input type="hidden" id="scf-id">
+        <div class="form-grid" style="grid-template-columns: 1fr 1fr; gap:12px">
+          <div class="field">
+            <label style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:4px">Nama Sub-Kategori / Ruangan</label>
+            <input type="text" id="scf-name" placeholder="cth: LAB SPRAYER LT. 2" style="background:var(--bg); border:1px solid var(--border); color:#fff; padding:8px 12px; border-radius:6px" required>
+          </div>
+          <div class="field">
+            <label style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:4px">Kategori Utama (Induk Gedung/Area)</label>
+            <select id="scf-zone" style="background:var(--bg); border:1px solid var(--border); color:#fff; padding:8px 12px; border-radius:6px" required></select>
+          </div>
+        </div>
+        <p id="scf-err" style="color:var(--alert); font-size:12px; margin:8px 0 0; font-family:var(--mono)"></p>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px; border-top:1px solid rgba(255,255,255,0.06); padding-top:10px">
+          <button type="button" class="btn-secondary" style="padding:6px 14px; font-size:12px" onclick="closeSubCatForm()">Batal</button>
+          <button type="button" class="btn-primary" style="padding:6px 16px; font-size:12px" onclick="submitSubCatForm()">Simpan Sub-Kategori</button>
+        </div>
+      </div>
+
+      <!-- Tabel Sub-Kategori -->
+      <div class="modal-table-container">
+        <div class="device-table-wrap" style="max-height:360px; overflow-y:auto; margin:0">
+          <table class="device-table">
+            <thead>
+              <tr>
+                <th style="width:50px; text-align:center">#</th>
+                <th>Nama Sub-Kategori / Ruangan</th>
+                <th>Induk Kategori Utama</th>
+                <th style="width:140px">Jumlah Perangkat</th>
+                <th style="width:140px; text-align:right">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="subcat-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── MODAL: Disconnect / Kick Device ── -->
+<div class="modal-overlay" id="kick-modal" data-modal="kick">
+  <div class="modal" style="max-width:480px; width:95%">
+    <button class="modal-close" onclick="closeKickModal()" title="Tutup">✕</button>
+    <p class="modal-title" style="color:var(--alert)">🚫 Putus Sambungan Perangkat</p>
+    <div id="kick-modal-body"></div>
+  </div>
+</div>
+
 <!-- ── Main App Script ── -->
   <!-- Node Modal -->
   <div class="modal-overlay" id="node-modal">
@@ -666,6 +1036,6 @@
     </div>
   </div>
 
-  <script src="/assets/app.js?v=1.2"></script>
+  <script src="/assets/app.js?v=1.3.0"></script>
 </body>
 </html>

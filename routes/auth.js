@@ -146,4 +146,30 @@ router.delete('/users/:id', authMW, async (req, res) => {
   }
 });
 
+/* ── PUT /api/auth/users/:id/reset-password (admin only) ── */
+router.put('/users/:id/reset-password', authMW, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin')
+      return res.status(403).json({ error: 'Hanya admin yang dapat mereset password user' });
+
+    const { new_password, must_change_password } = req.body;
+    if (!new_password || new_password.length < 6)
+      return res.status(400).json({ error: 'Password baru minimal 6 karakter' });
+
+    const hash = bcrypt.hashSync(new_password, 12);
+    const mustChange = must_change_password !== undefined ? (must_change_password ? 1 : 0) : 1;
+    
+    await db.execute(
+      'UPDATE users SET password_hash = ?, must_change_password = ? WHERE id = ?',
+      [hash, mustChange, req.params.id]
+    );
+
+    logAudit(req.user.username, 'Reset User Password', `User ID: ${req.params.id}`, 'Password user direset oleh admin');
+    res.json({ message: 'Password user berhasil direset' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Terjadi kesalahan pada server' });
+  }
+});
+
 module.exports = router;

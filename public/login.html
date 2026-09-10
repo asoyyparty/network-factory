@@ -4,7 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login — Sistem Kontrol Jaringan Pabrik</title>
-  <link rel="icon" type="image/png" href="/assets/cba-logo.png">
+  <link rel="icon" type="image/png" href="/assets/logo.png?v=2.0">
+  <link rel="shortcut icon" type="image/png" href="/assets/logo.png?v=2.0">
+  <link rel="apple-touch-icon" href="/assets/logo.png?v=2.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
@@ -380,7 +382,18 @@
         headers: { 'Content-Type': 'application/json' },
         body   : JSON.stringify({ username, password })
       });
-      const data = await res.json();
+      
+      let data = {};
+      const contentType = res.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        if (text.trim().startsWith('<')) {
+          throw new Error(`Server mengembalikan halaman HTML (Status ${res.status}). Pastikan server backend berjalan.`);
+        }
+        try { data = JSON.parse(text); } catch (_) { throw new Error(`Format respons server tidak valid (${res.status})`); }
+      }
 
       if (!res.ok) {
         throw new Error(data.error || 'Login gagal');

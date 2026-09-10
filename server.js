@@ -25,7 +25,15 @@ const app    = express();
 const server = http.createServer(app);
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html') || filePath.endsWith('.js') || filePath.endsWith('.css')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }
+}));
 
 /* ─── REST API Routes ─────────────────────────────────── */
 app.use('/api/auth',    authRoutes);
@@ -53,6 +61,7 @@ app.get('*', (req, res) => {
 
 /* ─── WebSocket Server ────────────────────────────────── */
 const wss = new WebSocket.Server({ server, path: '/ws' });
+wss.on('error', () => {}); // Handle EADDRINUSE gracefully on HTTP server error
 
 wss.on('connection', (ws, req) => {
   // Baca token dari query string: /ws?token=xxx

@@ -179,6 +179,138 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+/* ── GET /api/devices/routers — Daftar semua Router / AP ───────── */
+router.get('/routers', async (req, res) => {
+  try {
+    const [rows] = await db.execute('SELECT id, name, host, port, username, router_type, created_at FROM routers ORDER BY id');
+    res.json({ routers: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gagal mengambil daftar router' });
+  }
+});
+
+/* ── POST /api/devices/routers — Tambah Router / AP Baru ────────── */
+router.post('/routers', async (req, res) => {
+  try {
+    const { name, host, port, username, password, router_type } = req.body;
+    if (!name || !host || !username) {
+      return res.status(400).json({ error: 'Nama, Host/IP, dan Username router wajib diisi' });
+    }
+
+    await db.execute(`
+      INSERT INTO routers (name, host, port, username, password, router_type)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `, [
+      name.trim(),
+      host.trim(),
+      parseInt(port) || 22,
+      username.trim(),
+      password || '',
+      router_type || 'mikrotik'
+    ]);
+
+    logAudit(req.user.username, 'Add Router', name, `Host: ${host}:${port || 22} (${router_type || 'mikrotik'})`);
+    res.status(201).json({ message: 'Router / AP berhasil ditambahkan' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gagal menambahkan router baru' });
+  }
+});
+
+/* ── PUT /api/devices/routers/:id — Edit Router / AP ────────────── */
+router.put('/routers/:id', async (req, res) => {
+  try {
+    const { name, host, port, username, password, router_type } = req.body;
+    const [existing] = await db.execute('SELECT * FROM routers WHERE id = ?', [req.params.id]);
+    if (existing.length === 0) return res.status(404).json({ error: 'Router tidak ditemukan' });
+
+    const current = existing[0];
+
+    await db.execute(`
+      UPDATE routers SET
+        name = ?, host = ?, port = ?, username = ?,
+        password = ?, router_type = ?
+      WHERE id = ?
+    `, [
+      name       ?? current.name,
+      host       ?? current.host,
+      port       ?? current.port,
+      username   ?? current.username,
+      password   !== undefined ? password : current.password,
+      router_type?? current.router_type,
+      req.params.id
+    ]);
+
+    logAudit(req.user.username, 'Edit Router', name || current.name, `Host: ${host || current.host}`);
+    res.json({ message: 'Router / AP berhasil diperbarui' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gagal merubah data router' });
+  }
+});
+
+/* ── DELETE /api/devices/routers/:id — Hapus Router / AP ────────── */
+router.delete('/routers/:id', async (req, res) => {
+  try {
+    const [existing] = await db.execute('SELECT name FROM routers WHERE id = ?', [req.params.id]);
+    if (existing.length === 0) return res.status(404).json({ error: 'Router tidak ditemukan' });
+
+    await db.execute('DELETE FROM routers WHERE id = ?', [req.params.id]);
+    logAudit(req.user.username, 'Delete Router', existing[0].name, `Deleted by admin`);
+    res.json({ message: 'Router / AP berhasil dihapus' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gagal menghapus router' });
+  }
+});
+
+/* ── POST /api/devices/routers/:id/test — Tes Koneksi SSH Router ── */
+router.post('/routers/:id/test', async (req, res) => {
+  try {
+    const [rows] = await db.execute('SELECT * FROM routers WHERE id = ?', [req.params.id]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Router tidak ditemukan' });
+
+    const { testRouterSSH } = require('../services/routerControl');
+    await testRouterSSH(rows[0]);
+    res.json({ message: `Koneksi SSH ke ${rows[0].name} (${rows[0].host}) BERHASIL!` });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Koneksi SSH gagal' });
+  }
+});
+
+/* ── GET /api/devices/routers/:id/clients — Client tersambung live ── */
+router.get('/routers/:id/clients', async (req, res) => {
+  try {
+    const discovery = require('../services/discovery');
+    const clients = await discovery.discoverRouterClients(req.params.id);
+    
+    // Cross-reference with monitored devices table
+    const [existingRows] = await db.execute('SELECT id, nama, loc_id, ip, mac FROM devices');
+    const macMap = new Map();
+    const ipMap  = new Map();
+    existingRows.forEach(d => {
+      if (d.mac) macMap.set(d.mac.toUpperCase(), d);
+      if (d.ip)  ipMap.set(d.ip, d);
+    });
+
+    const enrichedClients = clients.map(c => {
+      const match = (c.mac && macMap.get(c.mac.toUpperCase())) || (c.ip && ipMap.get(c.ip));
+      return {
+        ...c,
+        is_monitored: !!match,
+        monitored_device_id: match ? match.id : null,
+        monitored_nama: match ? match.nama : null
+      };
+    });
+
+    res.json({ clients: enrichedClients });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message || 'Gagal memindai klien tersambung dari router' });
+  }
+});
+
 /* ── GET /api/devices/scan ────────────────────────────────────── */
 router.get('/scan', async (req, res) => {
   try {
@@ -352,6 +484,175 @@ router.delete('/os/:id', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Gagal menghapus OS' });
+  }
+});
+
+/* ── Zone / Category Management endpoints ── */
+
+/* ── GET /api/devices/zones ── */
+router.get('/zones', async (req, res) => {
+  try {
+    const [rows] = await db.execute('SELECT id, zone_key, label, sort_order FROM zones ORDER BY sort_order, id');
+    res.json({ zones: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gagal mengambil daftar kategori gedung' });
+  }
+});
+
+/* ── POST /api/devices/zones ── */
+router.post('/zones', async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Hanya admin yang dapat menambah kategori gedung' });
+    }
+    const { zone_key, label, sort_order } = req.body;
+    if (!label || !label.trim()) {
+      return res.status(400).json({ error: 'Nama/Label kategori wajib diisi' });
+    }
+    const key = (zone_key && zone_key.trim()) ? zone_key.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_') : label.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_');
+    
+    await db.execute('INSERT INTO zones (zone_key, label, sort_order) VALUES (?, ?, ?)', [
+      key, label.trim(), parseInt(sort_order) || 0
+    ]);
+    
+    logAudit(req.user.username, 'Tambah Kategori Gedung', label, `Key: ${key}`);
+    res.status(201).json({ message: 'Kategori gedung berhasil ditambahkan' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message || 'Gagal menambahkan kategori gedung' });
+  }
+});
+
+/* ── PUT /api/devices/zones/:id ── */
+router.put('/zones/:id', async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Hanya admin yang dapat mengedit kategori gedung' });
+    }
+    const { label, sort_order } = req.body;
+    if (!label || !label.trim()) {
+      return res.status(400).json({ error: 'Nama/Label kategori wajib diisi' });
+    }
+
+    await db.execute('UPDATE zones SET label = ?, sort_order = ? WHERE id = ?', [
+      label.trim(), parseInt(sort_order) || 0, req.params.id
+    ]);
+
+    logAudit(req.user.username, 'Edit Kategori Gedung', label, `ID: ${req.params.id}`);
+    res.json({ message: 'Kategori gedung berhasil diubah' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gagal mengubah kategori gedung' });
+  }
+});
+
+/* ── DELETE /api/devices/zones/:id ── */
+router.delete('/zones/:id', async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Hanya admin yang dapat menghapus kategori gedung' });
+    }
+    
+    const [zRows] = await db.execute('SELECT * FROM zones WHERE id = ?', [req.params.id]);
+    if (zRows.length === 0) return res.status(404).json({ error: 'Kategori tidak ditemukan' });
+    
+    const zone = zRows[0];
+    await db.execute('DELETE FROM zones WHERE id = ?', [req.params.id]);
+
+    logAudit(req.user.username, 'Hapus Kategori Gedung', zone.label, `Key: ${zone.zone_key}`);
+    res.json({ message: 'Kategori gedung berhasil dihapus' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gagal menghapus kategori gedung' });
+  }
+});
+
+/* ── Sub Category / Location Management endpoints ── */
+
+/* ── GET /api/devices/locations ── */
+router.get('/locations', async (req, res) => {
+  try {
+    const [rows] = await db.execute('SELECT id, nama, zone_key, sort_order FROM locations ORDER BY sort_order, nama');
+    res.json({ locations: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gagal mengambil daftar sub-kategori / lokasi' });
+  }
+});
+
+/* ── POST /api/devices/locations ── */
+router.post('/locations', async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Hanya admin yang dapat menambah sub-kategori' });
+    }
+    const { id, nama, zone_key, sort_order } = req.body;
+    if (!nama || !nama.trim() || !zone_key || !zone_key.trim()) {
+      return res.status(400).json({ error: 'Nama sub-kategori dan Kategori Utama wajib diisi' });
+    }
+    
+    const locId = (id && id.trim()) ? id.trim() : 'l' + Date.now();
+    await db.execute('INSERT INTO locations (id, nama, zone_key, sort_order) VALUES (?, ?, ?, ?)', [
+      locId, nama.trim(), zone_key.trim(), parseInt(sort_order) || 0
+    ]);
+    
+    logAudit(req.user.username, 'Tambah Sub-Kategori', nama, `ID: ${locId}, Zone: ${zone_key}`);
+    res.status(201).json({ message: 'Sub-kategori / lokasi berhasil ditambahkan', id: locId });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message || 'Gagal menambahkan sub-kategori' });
+  }
+});
+
+/* ── PUT /api/devices/locations/:id ── */
+router.put('/locations/:id', async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Hanya admin yang dapat mengedit sub-kategori' });
+    }
+    const { nama, zone_key, sort_order } = req.body;
+    if (!nama || !nama.trim() || !zone_key || !zone_key.trim()) {
+      return res.status(400).json({ error: 'Nama sub-kategori dan Kategori Utama wajib diisi' });
+    }
+
+    await db.execute('UPDATE locations SET nama = ?, zone_key = ?, sort_order = ? WHERE id = ?', [
+      nama.trim(), zone_key.trim(), parseInt(sort_order) || 0, req.params.id
+    ]);
+
+    logAudit(req.user.username, 'Edit Sub-Kategori', nama, `ID: ${req.params.id}`);
+    res.json({ message: 'Sub-kategori / lokasi berhasil diubah' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gagal mengubah sub-kategori' });
+  }
+});
+
+/* ── DELETE /api/devices/locations/:id ── */
+router.delete('/locations/:id', async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Hanya admin yang dapat menghapus sub-kategori' });
+    }
+    
+    const [lRows] = await db.execute('SELECT * FROM locations WHERE id = ?', [req.params.id]);
+    if (lRows.length === 0) return res.status(404).json({ error: 'Sub-kategori tidak ditemukan' });
+    
+    const loc = lRows[0];
+    
+    // Check if devices are attached to this location
+    const [dRows] = await db.execute('SELECT COUNT(*) as cnt FROM devices WHERE loc_id = ?', [req.params.id]);
+    if (dRows[0].cnt > 0) {
+      return res.status(400).json({ error: `Tidak dapat menghapus "${loc.nama}" karena masih digunakan oleh ${dRows[0].cnt} perangkat` });
+    }
+
+    await db.execute('DELETE FROM locations WHERE id = ?', [req.params.id]);
+
+    logAudit(req.user.username, 'Hapus Sub-Kategori', loc.nama, `ID: ${loc.id}`);
+    res.json({ message: 'Sub-kategori / lokasi berhasil dihapus' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Gagal menghapus sub-kategori' });
   }
 });
 

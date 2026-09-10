@@ -28,7 +28,9 @@
     'reboot'   : () => closeRebootModal(),
     'changepwd': () => closeChangePwdModal(),
     'scan'     : () => closeScanModal(),
-    'device'   : () => closeDeviceForm()
+    'device'   : () => closeDeviceForm(),
+    'adduser'  : () => closeAddUserModal(),
+    'resetuser': () => closeResetUserModal()
   };
   let _downTarget = null;
   document.addEventListener('mousedown', e => { _downTarget = e.target; });
@@ -90,6 +92,24 @@ const api = {
         window.location.replace('/login.html');
         return null;
       }
+      if (res) {
+        const origJson = res.json.bind(res);
+        res.json = async () => {
+          const contentType = res.headers.get('content-type') || '';
+          if (!contentType.includes('application/json')) {
+            const text = await res.text();
+            if (text.trim().startsWith('<')) {
+              throw new Error(`Server mengembalikan respons HTML (Status ${res.status}). Pastikan URL/endpoint API valid.`);
+            }
+            try {
+              return JSON.parse(text);
+            } catch (_) {
+              throw new Error(`Respons server bukan format JSON yang valid (Status ${res.status})`);
+            }
+          }
+          return await origJson();
+        };
+      }
       return res;
     } catch (err) {
       console.error(`[API] ${method} ${url} failed:`, err.message);
@@ -103,20 +123,44 @@ const api = {
 };
 
 /* ── 3. KONSTANTA TOPOLOGI (sama seperti versi asli) ───────────────── */
-const ZONES = [
-  {key:'PRODUKSI', label:'Area Produksi Utama'},
-  {key:'A', label:'Gedung A'},{key:'B', label:'Gedung B'},
-  {key:'C', label:'Gedung C'},{key:'D', label:'Gedung D'},
-  {key:'E', label:'Gedung E'},{key:'F', label:'Gedung F'},
-  {key:'G', label:'Gedung G'},{key:'H', label:'Gedung H'},
-  {key:'I', label:'Gedung I'},{key:'J', label:'Gedung J'},
-  {key:'SECURITY', label:'Keamanan'},
-  {key:'MESS', label:'Mess Karyawan'},
-  {key:'GUDANG_EKS', label:'Gudang Eksternal'},
-  {key:'INTI', label:'Inti Jaringan'},
-  {key:'GUDANG_IT_AREA', label:'Area Gudang IT'},
-  {key:'MULSA', label:'Area Mulsa'}
+let ZONES = [
+  {id: 1, key:'PRODUKSI', label:'Area Produksi Utama', sort_order: 1},
+  {id: 2, key:'A', label:'Gedung A', sort_order: 2},
+  {id: 3, key:'B', label:'Gedung B', sort_order: 3},
+  {id: 4, key:'C', label:'Gedung C', sort_order: 4},
+  {id: 5, key:'D', label:'Gedung D', sort_order: 5},
+  {id: 6, key:'E', label:'Gedung E', sort_order: 6},
+  {id: 7, key:'F', label:'Gedung F', sort_order: 7},
+  {id: 8, key:'G', label:'Gedung G', sort_order: 8},
+  {id: 9, key:'H', label:'Gedung H', sort_order: 9},
+  {id: 10, key:'I', label:'Gedung I', sort_order: 10},
+  {id: 11, key:'J', label:'Gedung J', sort_order: 11},
+  {id: 12, key:'SECURITY', label:'Keamanan', sort_order: 12},
+  {id: 13, key:'MESS', label:'Mess Karyawan', sort_order: 13},
+  {id: 14, key:'GUDANG_EKS', label:'Gudang Eksternal', sort_order: 14},
+  {id: 15, key:'INTI', label:'Inti Jaringan', sort_order: 15},
+  {id: 16, key:'GUDANG_IT_AREA', label:'Area Gudang IT', sort_order: 16},
+  {id: 17, key:'MULSA', label:'Area Mulsa', sort_order: 17}
 ];
+
+async function loadZones() {
+  try {
+    const res = await api.get('/api/devices/zones');
+    if (res && res.ok) {
+      const data = await res.json();
+      if (data.zones && data.zones.length > 0) {
+        ZONES = data.zones.map(z => ({
+          id: z.id,
+          key: z.zone_key,
+          label: z.label,
+          sort_order: z.sort_order
+        }));
+      }
+    }
+  } catch (err) {
+    console.warn('[Zones] Gagal memuat kategori gedung:', err.message);
+  }
+}
 
 const RAW_LOCATIONS = [
   ['LAB SPRAYER','PRODUKSI'],['RUANG UKK','PRODUKSI'],['RUANG ATK','PRODUKSI'],['RUANG BENIH','PRODUKSI'],
@@ -376,6 +420,10 @@ function renderUserInfo() {
   const auditTab = $('#tab-audit-btn');
   if (auditTab) {
     auditTab.style.display = u.role === 'admin' ? 'inline-block' : 'none';
+  }
+  const usersTab = $('#tab-users-btn');
+  if (usersTab) {
+    usersTab.style.display = u.role === 'admin' ? 'inline-block' : 'none';
   }
 }
 
@@ -679,9 +727,62 @@ function _tt(uid){
   renderTopology();
 }
 
+let isDraggingTopo = false;
+let topoStartX = 0, topoStartY = 0;
+let topoScrollLeft = 0, topoScrollTop = 0;
+let topoHasMoved = false;
+
+function enableTopoDragScroll(scrollEl) {
+  if (!scrollEl || scrollEl._hasDragScroll) return;
+  scrollEl._hasDragScroll = true;
+  scrollEl.style.cursor = 'grab';
+
+  scrollEl.addEventListener('mousedown', (e) => {
+    if (e.target.closest('button, a, input, select')) return;
+    isDraggingTopo = true;
+    topoHasMoved = false;
+    scrollEl.style.cursor = 'grabbing';
+    topoStartX = e.clientX;
+    topoStartY = e.clientY;
+    topoScrollLeft = scrollEl.scrollLeft;
+    topoScrollTop  = scrollEl.scrollTop;
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!isDraggingTopo || !scrollEl) return;
+    const dx = e.clientX - topoStartX;
+    const dy = e.clientY - topoStartY;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) {
+      topoHasMoved = true;
+    }
+    scrollEl.scrollLeft = topoScrollLeft - dx;
+    scrollEl.scrollTop  = topoScrollTop - dy;
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (isDraggingTopo) {
+      isDraggingTopo = false;
+      if (scrollEl) scrollEl.style.cursor = 'grab';
+    }
+  });
+
+  scrollEl.addEventListener('click', (e) => {
+    if (topoHasMoved) {
+      e.stopPropagation();
+      e.preventDefault();
+      topoHasMoved = false;
+    }
+  }, true);
+}
+
 function renderTopology(){
   const inner = $('#topo-inner');
   if (!inner) return;
+
+  const oldScroll = $('.topo-table-scroll', inner);
+  const prevLeft = oldScroll ? oldScroll.scrollLeft : 0;
+  const prevTop  = oldScroll ? oldScroll.scrollTop  : 0;
+
   inner.innerHTML =
     `<div class="topo-th-wrap">` +
     `<div class="topo-legend-row">` +
@@ -689,11 +790,18 @@ function renderTopology(){
     `<span class="tl-dot s-alert"></span>Offline&nbsp;&nbsp;` +
     `<span class="tl-dot s-warn"></span>Maintenance&nbsp;&nbsp;` +
     `<span class="tl-dot s-idle"></span>Belum Ada Data&nbsp;&nbsp;` +
-    `<span style="margin-left:12px;color:var(--text-muted)">▶ = klik untuk expand/collapse</span>` +
+    `<span style="margin-left:12px;color:var(--text-muted)">▶ = klik expand/collapse | 🖐️ Klik & drag mouse untuk geser peta</span>` +
     `</div>` +
     `<div class="topo-table-scroll">` +
     `<table class="topo-htable"><tbody>${buildTopoTable()}</tbody></table>` +
     `</div></div>`;
+
+  const newScroll = $('.topo-table-scroll', inner);
+  if (newScroll) {
+    newScroll.scrollLeft = prevLeft;
+    newScroll.scrollTop  = prevTop;
+    enableTopoDragScroll(newScroll);
+  }
 }
 
 function setupPanZoom(){
@@ -715,12 +823,18 @@ function switchTab(name){
   $('#view-offline').classList.toggle('active', name==='offline');
   $('#view-report').classList.toggle('active', name==='report');
   $('#view-audit').classList.toggle('active', name==='audit');
+  const vu = $('#view-users');
+  if(vu) vu.classList.toggle('active', name==='users');
+  const vr = $('#view-routers');
+  if(vr) vr.classList.toggle('active', name==='routers');
   const vmt = $('#view-manage-topo');
   if(vmt) vmt.classList.toggle('active', name==='manage-topo');
   if(name==='grid') renderGridDashboard();
   if(name==='offline') renderOfflineDevices();
   if(name==='report') renderReportView();
   if(name==='audit') renderAuditView();
+  if(name==='users') renderUsersView();
+  if(name==='routers') renderRoutersView();
   if(name==='manage-topo') renderManageTopo();
 }
 
@@ -733,6 +847,8 @@ function refreshActiveView() {
   if (tab === 'offline') renderOfflineDevices();
   if (tab === 'report') renderReportView();
   if (tab === 'audit') renderAuditView();
+  if (tab === 'users') renderUsersView();
+  if (tab === 'routers') renderRoutersView();
 }
 
 function renderOfflineDevices() {
@@ -772,6 +888,7 @@ function renderOfflineDevices() {
       <td>${statusBadge(d.status)} ${latencyChip(d.last_ping_ms)}</td>
       <td><div class="row-actions">
         ${isAdmin && d.mac ? `<button class="icon-btn" title="Wake on LAN (WoL)" onclick="wakeDevice('${d.id}')">⚡</button>` : ''}
+        ${isAdmin ? `<button class="icon-btn danger" title="Putus Sambungan dari Router" onclick="openKickModal('${d.id}','${escapeHtml(d.mac||'')}','${escapeHtml(d.ip||'')}','${escapeHtml(d.nama)}')">🚫</button>` : ''}
         ${isAdmin ? `<button class="icon-btn" title="Ubah" onclick="editDevice('${d.id}')">✍</button>` : ''}
         <button class="icon-btn" title="Riwayat Ping" onclick="openHistoryModal('${d.id}')">📊</button>
         ${isAdmin && d.ip ? `<button class="icon-btn" title="Reboot SSH" onclick="openRebootModal('${d.id}')">↺</button>` : ''}
@@ -851,6 +968,7 @@ function renderDetail(){
       <td>${escapeHtml(d.catatan||'—')}</td>
       <td><div class="row-actions">
         ${isAdmin && d.mac ? `<button class="icon-btn" title="Wake on LAN (WoL)" onclick="wakeDevice('${d.id}')">⚡</button>` : ''}
+        ${isAdmin ? `<button class="icon-btn danger" title="Putus Sambungan dari Router" onclick="openKickModal('${d.id}','${escapeHtml(d.mac||'')}','${escapeHtml(d.ip||'')}','${escapeHtml(d.nama)}')">🚫</button>` : ''}
         ${isAdmin?`<button class="icon-btn" title="Ubah" onclick="editDevice('${d.id}')">✍</button>`:''}
         <button class="icon-btn" title="Riwayat Ping" onclick="openHistoryModal('${d.id}')">📊</button>
         ${isAdmin&&d.ip?`<button class="icon-btn" title="Reboot SSH" onclick="openRebootModal('${d.id}')">↺</button>`:''}
@@ -1650,6 +1768,456 @@ async function renderAuditView() {
   }
 }
 
+/* ── 21. USER MANAGEMENT ───────────────────────────────────────────── */
+let currentUsersList = [];
+
+async function renderUsersView() {
+  const panel = $('#users-panel');
+  if (!panel) return;
+
+  if (!currentUsersList || currentUsersList.length === 0) {
+    panel.innerHTML = renderLoadingState('Memuat Daftar Pengguna...');
+  } else {
+    showBgLoadingIndicator(panel);
+  }
+
+  try {
+    const res = await api.get('/api/auth/users');
+    if (!res || !res.ok) {
+      const errData = res ? await res.json() : {};
+      throw new Error(errData.error || 'Gagal memuat pengguna');
+    }
+    const data = await res.json();
+    currentUsersList = data.users || [];
+
+    const rows = currentUsersList.map(u => {
+      const isSelf = currentUser && currentUser.id === u.id;
+      const roleBadge = u.role === 'admin'
+        ? '<span class="status-badge" style="color:var(--accent);background:rgba(56,189,248,0.15);border:1px solid var(--accent-dim)">⚡ ADMIN</span>'
+        : '<span class="status-badge" style="color:var(--text-muted);background:rgba(156,163,175,0.15);border:1px solid var(--border)">👁️ VIEWER</span>';
+      
+      const pwdBadge = u.must_change_password
+        ? '<span class="status-badge" style="color:var(--warn);background:rgba(251,191,36,0.15)">⚠️ Wajib Ganti</span>'
+        : '<span class="status-badge" style="color:var(--ok);background:rgba(52,211,153,0.15)">Normal</span>';
+
+      const lastLoginStr = u.last_login ? new Date(u.last_login).toLocaleString('id-ID') : 'Belum Pernah';
+      const createdAtStr = u.created_at ? new Date(u.created_at).toLocaleString('id-ID') : '—';
+
+      return `
+        <tr>
+          <td style="font-family:var(--mono); font-weight:600; color:var(--accent)">#${u.id}</td>
+          <td><b>${escapeHtml(u.username)}</b> ${isSelf ? '<span style="font-size:11px; color:var(--accent); margin-left:6px">(Anda)</span>' : ''}</td>
+          <td>${roleBadge}</td>
+          <td>${pwdBadge}</td>
+          <td style="font-family:var(--mono); font-size:12px; color:var(--text-muted)">${lastLoginStr}</td>
+          <td style="font-family:var(--mono); font-size:12px; color:var(--text-muted)">${createdAtStr}</td>
+          <td>
+            <div class="row-actions">
+              <button class="icon-btn" title="Reset Password User" onclick="openResetUserModal(${u.id}, '${escapeHtml(u.username)}')">🔑</button>
+              ${!isSelf ? `<button class="icon-btn danger" title="Hapus User" onclick="deleteUser(${u.id}, '${escapeHtml(u.username)}')">✖</button>` : ''}
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    panel.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; flex-wrap:wrap; gap:16px">
+        <div>
+          <h2 style="font-size:22px; margin:0 0 6px; color:#fff; font-weight:600">👥 Kelola Pengguna System</h2>
+          <p style="font-size:13px; color:var(--text-muted); margin:0">Total Pengguna Terdaftar: <b>${currentUsersList.length}</b> akun</p>
+        </div>
+        <button class="btn-primary" onclick="openAddUserModal()">＋ Tambah User Baru</button>
+      </div>
+      <div class="device-table-wrap">
+        <table class="device-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Username</th>
+              <th>Role</th>
+              <th>Status Password</th>
+              <th>Login Terakhir</th>
+              <th>Dibuat Pada</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows || '<tr><td colspan="7" class="no-devices">Belum ada user tambahan.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (err) {
+    console.error('[Users]', err);
+    panel.innerHTML = `<div class="empty-state"><p style="color:var(--alert)">⚠️ Gagal memuat pengguna: ${escapeHtml(err.message)}</p></div>`;
+  } finally {
+    hideBgLoadingIndicator(panel);
+  }
+}
+
+/* Modal Helpers Add User */
+function openAddUserModal() {
+  $('#au-username').value = '';
+  $('#au-password').value = '';
+  $('#au-role').value = 'viewer';
+  $('#au-err').textContent = '';
+  $('#add-user-modal').classList.add('open');
+}
+
+function closeAddUserModal() {
+  $('#add-user-modal').classList.remove('open');
+}
+
+async function submitAddUser() {
+  const username = $('#au-username').value.trim();
+  const password = $('#au-password').value;
+  const role = $('#au-role').value;
+  const errEl = $('#au-err');
+
+  errEl.textContent = '';
+  if (!username) { errEl.textContent = 'Username wajib diisi'; return; }
+  if (!password || password.length < 6) { errEl.textContent = 'Password minimal 6 karakter'; return; }
+
+  try {
+    const res = await api.post('/api/auth/users', { username, password, role });
+    if (!res || !res.ok) {
+      const err = res ? await res.json() : {};
+      throw new Error(err.error || 'Gagal menambahkan user');
+    }
+    closeAddUserModal();
+    showToast(`User "${username}" berhasil ditambahkan!`, 'success');
+    renderUsersView();
+  } catch (err) {
+    errEl.textContent = err.message;
+  }
+}
+
+/* Modal Helpers Reset User Password */
+function openResetUserModal(id, username) {
+  $('#ru-user-id').value = id;
+  $('#ru-modal-title').textContent = `🔑 Reset Password User (${username})`;
+  $('#ru-password').value = '';
+  $('#ru-must-change').checked = true;
+  $('#ru-err').textContent = '';
+  $('#reset-user-modal').classList.add('open');
+}
+
+function closeResetUserModal() {
+  $('#reset-user-modal').classList.remove('open');
+}
+
+async function submitResetUserPwd() {
+  const userId = $('#ru-user-id').value;
+  const newPassword = $('#ru-password').value;
+  const mustChange = $('#ru-must-change').checked;
+  const errEl = $('#ru-err');
+
+  errEl.textContent = '';
+  if (!newPassword || newPassword.length < 6) { errEl.textContent = 'Password baru minimal 6 karakter'; return; }
+
+  try {
+    const res = await api.put(`/api/auth/users/${userId}/reset-password`, {
+      new_password: newPassword,
+      must_change_password: mustChange
+    });
+    if (!res || !res.ok) {
+      const err = res ? await res.json() : {};
+      throw new Error(err.error || 'Gagal mereset password');
+    }
+    closeResetUserModal();
+    showToast('Password user berhasil direset!', 'success');
+    renderUsersView();
+  } catch (err) {
+    errEl.textContent = err.message;
+  }
+}
+
+/* Delete User */
+async function deleteUser(id, username) {
+  if (!confirm(`Apakah Anda yakin ingin menghapus user "${username}"?`)) return;
+
+  try {
+    const res = await api.delete(`/api/auth/users/${id}`);
+    if (!res || !res.ok) {
+      const err = res ? await res.json() : {};
+      throw new Error(err.error || 'Gagal menghapus user');
+    }
+    showToast(`User "${username}" berhasil dihapus`, 'info');
+    renderUsersView();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+/* ── 21B. ROUTER & CLIENT MANAGEMENT PANEL ────────────────────────── */
+let selectedRouterForClients = null;
+let currentInspectedClients = [];
+
+async function renderRoutersView() {
+  const panel = $('#routers-view-panel');
+  if (!panel) return;
+
+  await loadRouters();
+
+  const isAdmin = currentUser && currentUser.role === 'admin';
+
+  if (!selectedRouterForClients && currentRoutersList.length > 0) {
+    selectedRouterForClients = currentRoutersList[0].id;
+  }
+
+  const activeRouterObj = currentRoutersList.find(r => r.id === selectedRouterForClients);
+
+  const routerCards = currentRoutersList.map(r => {
+    const isSelected = r.id === selectedRouterForClients;
+    return `
+      <div class="bcard ${isSelected ? 'status-ok' : 'status-idle'}" style="cursor:pointer; ${isSelected ? 'border-color:var(--accent); background:rgba(56,189,248,0.06)' : ''}" onclick="selectRouterForInspection(${r.id})">
+        <div class="bcard-head" style="margin-bottom:8px">
+          <div>
+            <span class="bcard-zone">${escapeHtml(r.router_type || 'mikrotik').toUpperCase()}</span>
+            <h3 class="bcard-title" style="font-size:15px">${escapeHtml(r.name)}</h3>
+          </div>
+          ${isSelected ? '<span class="bcard-badge ok">✓ Terpilih</span>' : '<span class="bcard-badge idle">Klik Pilih</span>'}
+        </div>
+        <div style="font-family:var(--mono); font-size:12px; color:var(--text-muted); margin-bottom:12px">
+          <div>🌐 Host: <b>${escapeHtml(r.host)}:${r.port}</b></div>
+          <div>👤 User: <b>${escapeHtml(r.username)}</b></div>
+        </div>
+        <div class="row-actions" style="justify-content:flex-end">
+          <button class="icon-btn" title="Tes Koneksi SSH" onclick="event.stopPropagation(); testRouterConnection(${r.id}, this)">🔌</button>
+          ${isAdmin ? `<button class="icon-btn" title="Edit Router" onclick="event.stopPropagation(); openRouterFormModal(${r.id})">✍</button>` : ''}
+          ${isAdmin ? `<button class="icon-btn danger" title="Hapus Router" onclick="event.stopPropagation(); deleteRouter(${r.id}, '${escapeHtml(r.name)}')">✖</button>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  panel.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; flex-wrap:wrap; gap:16px">
+      <div>
+        <h2 style="font-size:22px; margin:0 0 6px; color:#fff; font-weight:600">📡 Manajemen Router & Klien Tersambung</h2>
+        <p style="font-size:13px; color:var(--text-muted); margin:0">Kelola router/AP dan lihat perangkat yang tersambung secara realtime via SSH.</p>
+      </div>
+      ${isAdmin ? `<button class="btn-primary" onclick="openRouterFormModal()">＋ Tambah Router / AP Baru</button>` : ''}
+    </div>
+
+    <!-- Router Grid Cards -->
+    <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:16px; margin-bottom:28px">
+      ${routerCards || '<div class="empty-state" style="grid-column:1/-1; padding:20px">Belum ada Router / AP terdaftar. Silakan tambah router baru.</div>'}
+    </div>
+
+    <!-- Inspected Router Clients Table -->
+    <div style="background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:28px">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px">
+        <div>
+          <h3 style="font-size:16px; margin:0 0 4px; color:#fff">
+            🔎 Klien Tersambung ke: <span style="color:var(--accent)">${activeRouterObj ? escapeHtml(activeRouterObj.name) : 'Belum Ada Router'}</span>
+          </h3>
+          <p style="font-size:12px; color:var(--text-muted); margin:0">Daftar tabel ARP & perangkat aktif yang terhubung ke router ini.</p>
+        </div>
+        ${activeRouterObj ? `<button class="btn-secondary" onclick="inspectRouterClients(${activeRouterObj.id})" style="padding:6px 14px; font-size:12px">⟳ Pindai Klien Live</button>` : ''}
+      </div>
+
+      <div id="router-clients-container">
+        <p style="color:var(--text-muted); font-size:13px">Klik <b>"⟳ Pindai Klien Live"</b> untuk memuat perangkat tersambung.</p>
+      </div>
+    </div>
+
+    <!-- Blocked Devices Section (Blacklist MAC) -->
+    <div style="background:var(--panel); border:1px solid rgba(248,113,113,0.4); border-radius:12px; padding:20px">
+      <div style="margin-bottom:16px">
+        <h3 style="font-size:16px; margin:0 0 4px; color:var(--alert)">🔒 Daftar Perangkat Ter-Block Permanen (MAC Blacklist)</h3>
+        <p style="font-size:12px; color:var(--text-muted); margin:0">Perangkat di bawah ini telah di-blacklist di firewall & MAC filter router sehingga ditolak saat mencoba terhubung.</p>
+      </div>
+      <div id="blocked-devices-container">
+        <div style="text-align:center; padding:10px; color:var(--text-muted)">Memuat daftar block...</div>
+      </div>
+    </div>
+  `;
+
+  loadBlockedDevices();
+
+  if (activeRouterObj) {
+    inspectRouterClients(activeRouterObj.id);
+  }
+}
+
+async function loadBlockedDevices() {
+  const container = $('#blocked-devices-container');
+  if (!container) return;
+
+  try {
+    const res = await api.get('/api/control/blocked');
+    const data = await res.json();
+    currentBlockedList = data.blocked || [];
+
+    if (currentBlockedList.length === 0) {
+      container.innerHTML = '<div style="text-align:center; padding:16px; color:var(--ok); font-size:13px">✓ Tidak ada perangkat yang sedang di-block saat ini.</div>';
+      return;
+    }
+
+    const isAdmin = currentUser && currentUser.role === 'admin';
+
+    const rows = currentBlockedList.map(b => `
+      <tr>
+        <td><b>${escapeHtml(b.device_name || 'Perangkat')}</b></td>
+        <td style="font-family:var(--mono); font-size:12px; color:var(--alert); font-weight:600">${escapeHtml(b.mac)}</td>
+        <td class="ip-cell">${escapeHtml(b.ip || '—')}</td>
+        <td><span class="zone-badge" style="background:var(--panel-2); color:var(--text-muted)">${escapeHtml(b.router_name || 'Router')}</span></td>
+        <td style="font-family:var(--mono); font-size:12px; color:var(--text-muted)">${new Date(b.blocked_at).toLocaleString('id-ID')}</td>
+        <td>
+          ${isAdmin ? `<button class="btn-secondary" style="padding:4px 10px; font-size:11px; border-color:var(--ok); color:var(--ok)" onclick="submitUnblockDevice(${b.id})">🔓 Buka Block (Unblock)</button>` : ''}
+        </td>
+      </tr>
+    `).join('');
+
+    container.innerHTML = `
+      <div class="device-table-wrap">
+        <table class="device-table">
+          <thead>
+            <tr>
+              <th>Perangkat</th>
+              <th>MAC Address Blocked</th>
+              <th>IP Address</th>
+              <th>Router Asal</th>
+              <th>Waktu Block</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      </div>
+    `;
+  } catch (err) {
+    container.innerHTML = `<div style="color:var(--alert)">Gagal memuat data block: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function selectRouterForInspection(routerId) {
+  selectedRouterForClients = routerId;
+  renderRoutersView();
+}
+
+let currentWifiFilterBand = 'ALL';
+
+async function inspectRouterClients(routerId) {
+  const container = $('#router-clients-container');
+  if (!container) return;
+
+  container.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text-muted)">⏳ Membaca data perangkat tersambung dari frekuensi Wi-Fi 2.4GHz & 5GHz router via SSH...</div>';
+
+  try {
+    const res = await api.get(`/api/devices/routers/${routerId}/clients`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Gagal memuat klien');
+
+    currentInspectedClients = data.clients || [];
+
+    if (currentInspectedClients.length === 0) {
+      container.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text-muted)">Tidak ada perangkat nirkabel yang tersambung ke jaringan Wi-Fi router ini saat ini.</div>';
+      return;
+    }
+
+    const count24G = currentInspectedClients.filter(c => c.band === '2.4GHz').length;
+    const count5G  = currentInspectedClients.filter(c => c.band === '5GHz').length;
+    const countLAN = currentInspectedClients.filter(c => c.band === 'LAN').length;
+
+    renderInspectedClientsTable(container, currentWifiFilterBand, count24G, count5G, countLAN);
+  } catch (err) {
+    container.innerHTML = `<div style="padding:20px; color:var(--alert); text-align:center">❌ ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function setWifiFilterBand(band) {
+  currentWifiFilterBand = band;
+  const container = $('#router-clients-container');
+  if (!container || !currentInspectedClients) return;
+
+  const count24G = currentInspectedClients.filter(c => c.band === '2.4GHz').length;
+  const count5G  = currentInspectedClients.filter(c => c.band === '5GHz').length;
+  const countLAN = currentInspectedClients.filter(c => c.band === 'LAN').length;
+
+  renderInspectedClientsTable(container, band, count24G, count5G, countLAN);
+}
+
+function renderInspectedClientsTable(container, filterBand, count24G, count5G, countLAN) {
+  const isAdmin = currentUser && currentUser.role === 'admin';
+
+  let filteredClients = currentInspectedClients;
+  if (filterBand === '2.4G') {
+    filteredClients = currentInspectedClients.filter(c => c.band === '2.4GHz');
+  } else if (filterBand === '5G') {
+    filteredClients = currentInspectedClients.filter(c => c.band === '5GHz');
+  } else if (filterBand === 'LAN') {
+    filteredClients = currentInspectedClients.filter(c => c.band === 'LAN');
+  }
+
+  const rows = filteredClients.map((c) => {
+    const bandBadge = c.band === '5GHz'
+      ? `<span class="zone-badge" style="background:rgba(168,85,247,0.15); color:#c084fc; border:1px solid rgba(168,85,247,0.3)">⚡ 5 GHz</span>`
+      : c.band === '2.4GHz'
+      ? `<span class="zone-badge" style="background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.3)">📶 2.4 GHz</span>`
+      : `<span class="zone-badge" style="background:rgba(52,211,153,0.15); color:#34d399; border:1px solid rgba(52,211,153,0.3)">🔌 LAN / Kabel</span>`;
+
+    return `
+      <tr>
+        <td style="font-weight:600">${escapeHtml(c.nama)}</td>
+        <td class="ip-cell">${escapeHtml(c.ip)}</td>
+        <td style="font-family:var(--mono); font-size:12px">${escapeHtml(c.mac)}</td>
+        <td>${bandBadge}</td>
+        <td>
+          ${c.is_monitored 
+            ? `<span class="status-badge" style="color:var(--ok); background:rgba(52,211,153,0.15)">✓ Terdaftar: ${escapeHtml(c.monitored_nama)}</span>` 
+            : `<span class="status-badge" style="color:var(--warn); background:rgba(251,191,36,0.15)">⚪ Perangkat Baru</span>`}
+        </td>
+        <td>
+          <div class="row-actions">
+            ${isAdmin ? `<button class="icon-btn danger" title="Putus Sambungan (Kick)" onclick="openKickModal(null, '${escapeHtml(c.mac)}', '${escapeHtml(c.ip)}', '${escapeHtml(c.nama)}')">🚫</button>` : ''}
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  container.innerHTML = `
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap">
+      <span style="font-size:12px; color:var(--text-muted); font-weight:600">Filter Jaringan:</span>
+      <button class="tab-btn ${filterBand === 'ALL' ? 'active' : ''}" onclick="setWifiFilterBand('ALL')" style="padding:4px 12px; font-size:12px">
+        Semua Perangkat (${currentInspectedClients.length})
+      </button>
+      <button class="tab-btn ${filterBand === '2.4G' ? 'active' : ''}" onclick="setWifiFilterBand('2.4G')" style="padding:4px 12px; font-size:12px; border-color:rgba(56,189,248,0.4)">
+        📶 Wi-Fi 2.4 GHz (${count24G})
+      </button>
+      <button class="tab-btn ${filterBand === '5G' ? 'active' : ''}" onclick="setWifiFilterBand('5G')" style="padding:4px 12px; font-size:12px; border-color:rgba(168,85,247,0.4)">
+        ⚡ Wi-Fi 5 GHz (${count5G})
+      </button>
+      <button class="tab-btn ${filterBand === 'LAN' ? 'active' : ''}" onclick="setWifiFilterBand('LAN')" style="padding:4px 12px; font-size:12px; border-color:rgba(52,211,153,0.4)">
+        🔌 LAN / Kabel (${countLAN})
+      </button>
+    </div>
+
+    <div class="device-table-wrap">
+      <table class="device-table">
+        <thead>
+          <tr>
+            <th>Nama / Label</th>
+            <th>IP Address</th>
+            <th>MAC Address</th>
+            <th>Jaringan Wi-Fi</th>
+            <th>Status Monitoring</th>
+            <th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows || `<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted)">Tidak ada perangkat tersambung pada filter ${filterBand === '2.4G' ? '2.4 GHz' : filterBand === '5G' ? '5 GHz' : 'Wi-Fi'}.</td></tr>`}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
 /* ── 22. INIT ──────────────────────────────────────────────────────── */
 async function init(){
   // Paksa kosongkan search input — Chrome/Edge sering abaikan autocomplete="off"
@@ -1678,6 +2246,7 @@ async function init(){
     } catch(topoErr) {
       console.warn('[Topology] Gagal memuat topologi dari server, akan ditampilkan kosong:', topoErr.message);
     }
+    await loadZones();
     await loadOptions();
     await loadDevices();
 
@@ -1716,8 +2285,22 @@ async function init(){
   }
 }
 
-/* ── 20. AUTO DISCOVERY ────────────────────────────────────────────── */
+/* ── 20. AUTO DISCOVERY & MULTI-ROUTER MANAGEMENT ──────────────────── */
 let scannedDevicesList = [];
+let currentRoutersList = [];
+let activeScanTab = 'results'; // 'results' or 'routers'
+
+async function loadRouters() {
+  try {
+    const res = await api.get('/api/devices/routers');
+    if (res && res.ok) {
+      const data = await res.json();
+      currentRoutersList = data.routers || [];
+    }
+  } catch (err) {
+    console.warn('[Routers] Gagal memuat daftar router:', err.message);
+  }
+}
 
 async function scanNetwork() {
   const modal = $('#scan-modal');
@@ -1725,58 +2308,394 @@ async function scanNetwork() {
   if (!modal || !body) return;
   
   modal.classList.add('open');
-  body.innerHTML = '<div style="text-align:center; padding: 20px;">Memindai jaringan dari router (Mohon tunggu beberapa detik)...</div>';
-  
+  activeScanTab = 'results';
+  await loadRouters();
+
+  renderScanModalContent();
+  runNetworkScan();
+}
+
+function renderScanModalContent() {
+  const modal = $('#scan-modal');
+  if (!modal) return;
+
+  const titleEl = $('.modal-title', modal);
+  if (titleEl) {
+    titleEl.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; width:100%; padding-right:30px">
+        <span>🔍 Pindai & Kelola Router Jaringan</span>
+        <div style="display:flex; gap:6px">
+          <button class="btn-secondary" style="padding:6px 12px; font-size:12px; ${activeScanTab==='results'?'border-color:var(--accent);color:var(--accent)':''}" onclick="switchScanTab('results')">🔍 Hasil Pindai</button>
+          <button class="btn-secondary" style="padding:6px 12px; font-size:12px; ${activeScanTab==='routers'?'border-color:var(--accent);color:var(--accent)':''}" onclick="switchScanTab('routers')">📡 Kelola Router / AP (${currentRoutersList.length})</button>
+        </div>
+      </div>
+    `;
+  }
+
+  if (activeScanTab === 'routers') {
+    renderRoutersTab();
+  }
+}
+
+function switchScanTab(tab) {
+  activeScanTab = tab;
+  renderScanModalContent();
+  if (tab === 'results' && scannedDevicesList.length === 0) {
+    runNetworkScan();
+  }
+}
+
+async function runNetworkScan() {
+  const body = $('#scan-body');
+  if (!body) return;
+
+  body.innerHTML = `
+    <div style="text-align:center; padding:30px 20px;">
+      <div class="stat-chip" style="display:inline-flex; opacity:.8; margin-bottom:10px">📡 Memindai dari ${currentRoutersList.length || 1} Router / AP...</div>
+      <p style="color:var(--text-muted); font-size:13px; margin:0">Menghubungi SSH router & membaca tabel ARP. Mohon tunggu beberapa detik...</p>
+    </div>
+  `;
+
   try {
     const res = await api.get('/api/devices/scan');
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Gagal memindai');
     
     scannedDevicesList = data.scanned || [];
-    
-    if (scannedDevicesList.length === 0) {
-      body.innerHTML = '<div style="text-align:center; padding: 20px;">Tidak ada perangkat baru ditemukan.</div>';
-      return;
+
+    if (activeScanTab === 'results') {
+      renderScanResultsTable();
     }
-    
-    let html = `
+  } catch(e) {
+    if (activeScanTab === 'results') {
+      body.innerHTML = `<div style="text-align:center; padding: 25px; color: var(--alert)">❌ Error Pemindaian: ${escapeHtml(e.message)}</div>`;
+    }
+  }
+}
+
+function renderScanResultsTable() {
+  const body = $('#scan-body');
+  if (!body) return;
+
+  if (scannedDevicesList.length === 0) {
+    body.innerHTML = `
+      <div style="text-align:center; padding: 30px;">
+        <p style="color:var(--ok); font-weight:600; margin-bottom:4px">✓ Pemindaian Selesai</p>
+        <p style="font-size:13px; color:var(--text-muted)">Tidak ada perangkat baru ditemukan di jaringan.</p>
+        <button class="btn-secondary" onclick="runNetworkScan()" style="margin-top:10px">⟳ Pindai Ulang</button>
+      </div>
+    `;
+    return;
+  }
+
+  let html = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
+      <span style="font-size:12px; color:var(--text-muted)">Ditemukan <b>${scannedDevicesList.length}</b> perangkat baru:</span>
+      <button class="btn-secondary" onclick="runNetworkScan()" style="padding:4px 10px; font-size:11px">⟳ Pindai Ulang</button>
+    </div>
+    <table class="device-table">
+      <thead>
+        <tr>
+          <th style="width:40px"><input type="checkbox" onchange="toggleAllScanned(this)" checked></th>
+          <th>Nama Perangkat</th>
+          <th>IP Address</th>
+          <th>MAC Address</th>
+          <th>Router Asal</th>
+          <th>Tujuan Lokasi</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  let locOptions = '<option value="">-- Pilih Lokasi --</option>';
+  const sortedLocs = [...state.locations].sort((a,b)=>a.nama.localeCompare(b.nama));
+  sortedLocs.forEach(l => {
+    const sel = l.id === currentLocId ? 'selected' : '';
+    locOptions += `<option value="${l.id}" ${sel}>${escapeHtml(l.nama)} (${l.zone})</option>`;
+  });
+
+  scannedDevicesList.forEach((d, i) => {
+    html += `
+      <tr>
+        <td><input type="checkbox" class="scan-chk" data-idx="${i}" checked></td>
+        <td><input type="text" class="scan-nama" id="scan-nama-${i}" value="${escapeHtml(d.nama)}" style="width:100%; padding:4px"></td>
+        <td class="ip-cell">${escapeHtml(d.ip)}</td>
+        <td style="font-family:var(--mono); font-size:12px">${escapeHtml(d.mac)}</td>
+        <td><span class="zone-badge" style="background:var(--panel-2); color:var(--text-muted)">${escapeHtml(d.router_name || 'Router')}</span></td>
+        <td><select class="scan-loc" id="scan-loc-${i}" style="width:100%; padding:4px">${locOptions}</select></td>
+      </tr>
+    `;
+  });
+  html += '</tbody></table>';
+  body.innerHTML = html;
+}
+
+function renderRoutersTab() {
+  const body = $('#scan-body');
+  if (!body) return;
+
+  const rows = currentRoutersList.map(r => `
+    <tr>
+      <td><b>${escapeHtml(r.name)}</b></td>
+      <td class="ip-cell">${escapeHtml(r.host)}:${r.port}</td>
+      <td style="font-family:var(--mono); font-size:12px; color:var(--text-muted)">${escapeHtml(r.username)}</td>
+      <td><span class="zone-badge" style="background:var(--panel-2); color:var(--accent)">${escapeHtml(r.router_type || 'mikrotik').toUpperCase()}</span></td>
+      <td>
+        <div class="row-actions">
+          <button class="icon-btn" title="Tes Koneksi SSH" onclick="testRouterConnection(${r.id}, this)">🔌</button>
+          <button class="icon-btn" title="Edit Router" onclick="openRouterFormModal(${r.id})">✍</button>
+          <button class="icon-btn danger" title="Hapus Router" onclick="deleteRouter(${r.id}, '${escapeHtml(r.name)}')">✖</button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+
+  body.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px">
+      <div>
+        <h3 style="font-size:15px; margin:0 0 4px; color:#fff">📡 Daftar Router & Access Point Wi-Fi (${currentRoutersList.length})</h3>
+        <p style="font-size:12px; color:var(--text-muted); margin:0">Aplikasi akan memindai ARP & memutus koneksi perangkat melalui router-router ini.</p>
+      </div>
+      <button class="btn-primary" onclick="openRouterFormModal()">＋ Tambah Router / AP</button>
+    </div>
+    <div class="device-table-wrap">
       <table class="device-table">
         <thead>
           <tr>
-            <th style="width:40px"><input type="checkbox" onchange="toggleAllScanned(this)" checked></th>
-            <th>Nama Perangkat</th>
-            <th>IP Address</th>
-            <th>MAC Address</th>
-            <th>Tujuan Lokasi</th>
+            <th>Nama Router / AP</th>
+            <th>Host / IP Address</th>
+            <th>Username SSH</th>
+            <th>Tipe OS</th>
+            <th>Aksi</th>
           </tr>
         </thead>
         <tbody>
-    `;
-    
-    // Generate location options
-    let locOptions = '<option value="">-- Pilih Lokasi --</option>';
-    const sortedLocs = [...state.locations].sort((a,b)=>a.nama.localeCompare(b.nama));
-    sortedLocs.forEach(l => {
-      // pre-select current location if available
-      const sel = l.id === currentLocId ? 'selected' : '';
-      locOptions += `<option value="${l.id}" ${sel}>${escapeHtml(l.nama)} (${l.zone})</option>`;
+          ${rows || '<tr><td colspan="5" class="no-devices">Belum ada Router/AP terdaftar. Silakan tambah router baru.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function openRouterFormModal(routerId) {
+  const modal = $('#router-form-modal');
+  if (!modal) return;
+
+  $('#rf-err').textContent = '';
+  const title = $('#rf-modal-title');
+  const d = routerId ? currentRoutersList.find(r => r.id === routerId) : null;
+
+  title.textContent = d ? '✍ Edit Router / AP' : '📡 Tambah Router / AP Baru';
+  $('#rf-id').value   = d ? d.id : '';
+  $('#rf-name').value = d ? d.name : '';
+  $('#rf-host').value = d ? d.host : '';
+  $('#rf-port').value = d ? d.port : 22;
+  $('#rf-user').value = d ? d.username : 'admin';
+  $('#rf-pass').value = '';
+  $('#rf-type').value = d ? d.router_type || 'mikrotik' : 'mikrotik';
+
+  modal.classList.add('open');
+}
+
+function closeRouterFormModal() {
+  const modal = $('#router-form-modal');
+  if (modal) modal.classList.remove('open');
+}
+
+async function submitRouterForm() {
+  const id    = $('#rf-id').value;
+  const name  = $('#rf-name').value.trim();
+  const host  = $('#rf-host').value.trim();
+  const port  = parseInt($('#rf-port').value) || 22;
+  const user  = $('#rf-user').value.trim();
+  const pass  = $('#rf-pass').value;
+  const type  = $('#rf-type').value;
+  const errEl = $('#rf-err');
+
+  errEl.textContent = '';
+  if (!name || !host || !user) {
+    errEl.textContent = 'Nama, Host/IP, dan Username wajib diisi';
+    return;
+  }
+
+  try {
+    let res;
+    if (id) {
+      res = await api.put(`/api/devices/routers/${id}`, {
+        name, host, port, username: user, password: pass || undefined, router_type: type
+      });
+    } else {
+      res = await api.post('/api/devices/routers', {
+        name, host, port, username: user, password: pass, router_type: type
+      });
+    }
+
+    if (!res || !res.ok) {
+      const err = res ? await res.json() : {};
+      throw new Error(err.error || 'Gagal menyimpan router');
+    }
+
+    closeRouterFormModal();
+    showToast(`Router "${name}" berhasil disimpan`, 'success');
+    await loadRouters();
+    renderScanModalContent();
+    renderRoutersView();
+  } catch (err) {
+    errEl.textContent = err.message;
+  }
+}
+
+async function deleteRouter(id, name) {
+  if (!confirm(`Apakah Anda yakin ingin menghapus router "${name}"?`)) return;
+
+  try {
+    const res = await api.delete(`/api/devices/routers/${id}`);
+    if (!res || !res.ok) {
+      const err = res ? await res.json() : {};
+      throw new Error(err.error || 'Gagal menghapus router');
+    }
+    showToast(`Router "${name}" dihapus`, 'info');
+    await loadRouters();
+    renderScanModalContent();
+    renderRoutersView();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+async function testRouterConnection(id, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+  try {
+    const res = await api.post(`/api/devices/routers/${id}/test`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Tes SSH gagal');
+    showToast(data.message, 'ok');
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔌'; }
+  }
+}
+
+/* ── 20B. DISCONNECT / KICK & BLOCK DEVICE ─────────────────────────── */
+let activeKickPayload = null;
+let currentBlockedList = [];
+
+async function openKickModal(deviceId, mac, ip, name) {
+  const modal = $('#kick-modal');
+  const body  = $('#kick-modal-body');
+  if (!modal || !body) return;
+
+  activeKickPayload = { deviceId, mac, ip, name };
+  await loadRouters();
+
+  const defaultRouterId = selectedRouterForClients || (currentRoutersList.length > 0 ? currentRoutersList[0].id : '');
+  let routerOptions = currentRoutersList.map(r => 
+    `<option value="${r.id}" ${r.id == defaultRouterId ? 'selected' : ''}>${escapeHtml(r.name)} (${r.host}) - ${r.router_type.toUpperCase()}</option>`
+  ).join('');
+
+  if (currentRoutersList.length === 0) {
+    routerOptions = '<option value="">-- Belum ada Router Terdaftar --</option>';
+  }
+
+  body.innerHTML = `
+    <div style="margin-bottom:16px;">
+      <p style="font-size:13px; color:var(--text-muted); margin:0 0 10px">
+        Pilih tindakan keamanan untuk perangkat <b>"${escapeHtml(name)}"</b>:
+      </p>
+      <div style="background:var(--panel-2); padding:12px 14px; border-radius:8px; border:1px solid var(--border); font-family:var(--mono); font-size:12.5px; margin-bottom:16px">
+        <div>• <b>Nama:</b> ${escapeHtml(name)}</div>
+        <div>• <b>IP Address:</b> ${escapeHtml(ip || '—')}</div>
+        <div>• <b>MAC Address:</b> ${escapeHtml(mac || '—')}</div>
+      </div>
+      <div class="field">
+        <label>Pilih Router / AP Wi-Fi Tujuan</label>
+        <select id="kick-router-id" style="width:100%; padding:10px">${routerOptions}</select>
+      </div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px; margin-top:20px;">
+      <button class="btn-primary" style="background:var(--alert); border:none; color:#fff" onclick="submitBlockDevice()">🔒 BLOCK PERMANEN (Blacklist MAC & Firewall)</button>
+      <button class="btn-primary" style="background:var(--warn); border:none; color:#000" onclick="submitKickDevice()">⚡ Putus Koneksi Sementara (Deauth/Kick)</button>
+      <button class="btn-secondary" onclick="closeKickModal()">Batal</button>
+    </div>
+  `;
+
+  modal.classList.add('open');
+}
+
+function closeKickModal() {
+  const modal = $('#kick-modal');
+  if (modal) modal.classList.remove('open');
+  activeKickPayload = null;
+}
+
+async function submitKickDevice() {
+  if (!activeKickPayload) return;
+
+  const routerId = $('#kick-router-id').value;
+  const { deviceId, mac, ip, name } = activeKickPayload;
+
+  try {
+    const res = await api.post('/api/control/kick', {
+      device_id: deviceId,
+      mac,
+      ip,
+      router_id: routerId
     });
-    
-    scannedDevicesList.forEach((d, i) => {
-      html += `
-        <tr>
-          <td><input type="checkbox" class="scan-chk" data-idx="${i}" checked></td>
-          <td><input type="text" class="scan-nama" id="scan-nama-${i}" value="${escapeHtml(d.nama)}" style="width:100%; padding:4px"></td>
-          <td>${d.ip}</td>
-          <td>${d.mac}</td>
-          <td><select class="scan-loc" id="scan-loc-${i}" style="width:100%; padding:4px">${locOptions}</select></td>
-        </tr>
-      `;
+
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || 'Gagal memutus koneksi');
+
+    closeKickModal();
+    showToast(data.message || `Koneksi "${name}" berhasil diputus`, 'ok');
+  } catch (err) {
+    showToast(`Gagal: ${err.message}`, 'error');
+  }
+}
+
+async function submitBlockDevice() {
+  if (!activeKickPayload) return;
+
+  const routerId = $('#kick-router-id').value;
+  const { deviceId, mac, ip, name } = activeKickPayload;
+
+  if (!confirm(`Apakah Anda YAKIN ingin MEM-BLOCK PERMANEN perangkat "${name}" (${mac})? Perangkat TIDAK AKAN BISA terhubung ke Wi-Fi lagi.`)) {
+    return;
+  }
+
+  try {
+    const res = await api.post('/api/control/block', {
+      device_id: deviceId,
+      mac,
+      ip,
+      router_id: routerId,
+      reason: 'Blocked via Web App'
     });
-    html += '</tbody></table>';
-    body.innerHTML = html;
-  } catch(e) {
-    body.innerHTML = `<div style="text-align:center; padding: 20px; color: var(--alert)">Error: ${e.message}</div>`;
+
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || 'Gagal mem-block perangkat');
+
+    closeKickModal();
+    showToast(data.message || `Perangkat "${name}" BERHASIL DI-BLOCK PERMANEN!`, 'ok');
+    loadBlockedDevices();
+    if (selectedRouterForClients) inspectRouterClients(selectedRouterForClients);
+  } catch (err) {
+    showToast(`Gagal mem-block: ${err.message}`, 'error');
+  }
+}
+
+async function submitUnblockDevice(blockId) {
+  if (!confirm('Apakah Anda yakin ingin membuka block untuk perangkat ini?')) return;
+
+  try {
+    const res = await api.post('/api/control/unblock', { block_id: blockId });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || 'Gagal unblock');
+
+    showToast(data.message, 'ok');
+    refreshActiveView();
+  } catch (err) {
+    showToast(err.message, 'error');
   }
 }
 
@@ -1803,7 +2722,8 @@ async function bulkSaveDevices() {
         payload.push({
           ...base,
           nama,
-          loc_id
+          loc_id,
+          catatan: base.router_name ? `Tersambung via ${base.router_name}` : 'Auto-discovered'
         });
       }
     }
@@ -2113,6 +3033,330 @@ async function deleteNode(id) {
   }
 }
 
-// switchTab already handles manage-topo above
+async function loadSubCategories() {
+  try {
+    const res = await api.get('/api/devices/locations');
+    if (res && res.ok) {
+      const data = await res.json();
+      if (data.locations && data.locations.length > 0) {
+        allLocations = data.locations.map(l => ({
+          id: l.id,
+          nama: l.nama,
+          zone: l.zone_key,
+          sort_order: l.sort_order
+        }));
+        state.locations = allLocations;
+      }
+    }
+  } catch (err) {
+    console.warn('[SubCategories] Gagal memuat lokasi:', err.message);
+  }
+}
+
+/* ── 20C. ZONE & SUB-CATEGORY MANAGEMENT MODAL ───────────────────────── */
+let activeCatTab = 'main'; // 'main' or 'sub'
+let allLocations = SEED_LOCATIONS;
+
+async function openZonesModal() {
+  const modal = $('#zones-modal');
+  if (!modal) return;
+  
+  await loadZones();
+  await loadSubCategories();
+  switchCategoryTab(activeCatTab || 'main');
+  closeZoneForm();
+  closeSubCatForm();
+  modal.classList.add('open');
+}
+
+function closeZonesModal() {
+  const modal = $('#zones-modal');
+  if (modal) modal.classList.remove('open');
+}
+
+function switchCategoryTab(tab) {
+  activeCatTab = tab;
+  const btnMain = $('#btn-tab-main-cat');
+  const btnSub = $('#btn-tab-sub-cat');
+  const tabMain = $('#cat-tab-main');
+  const tabSub = $('#cat-tab-sub');
+
+  if (tab === 'main') {
+    if (btnMain) btnMain.classList.add('active');
+    if (btnSub) btnSub.classList.remove('active');
+    if (tabMain) tabMain.style.display = 'block';
+    if (tabSub) tabSub.style.display = 'none';
+    renderZonesTable();
+  } else {
+    if (btnSub) btnSub.classList.add('active');
+    if (btnMain) btnMain.classList.remove('active');
+    if (tabSub) tabSub.style.display = 'block';
+    if (tabMain) tabMain.style.display = 'none';
+    populateSubCatZoneFilters();
+    renderSubCategoriesTable();
+  }
+}
+
+function renderZonesTable() {
+  const tbody = $('#zones-table-body');
+  if (!tbody) return;
+
+  const isAdmin = currentUser && currentUser.role === 'admin';
+
+  const rows = ZONES.map(z => {
+    const locs = locationsByZone(z.key);
+    return `
+      <tr>
+        <td style="font-family:var(--mono); font-weight:700; color:var(--accent)">${escapeHtml(z.key)}</td>
+        <td style="font-weight:600; color:#fff">${escapeHtml(z.label)}</td>
+        <td style="font-family:var(--mono); text-align:center">${z.sort_order || 0}</td>
+        <td><span class="zone-badge" style="background:rgba(56,189,248,0.12); color:#38BDF8; border:1px solid rgba(56,189,248,0.25); padding:3px 8px; border-radius:12px; font-size:11.5px">${locs.length} sub-kategori</span></td>
+        <td style="text-align:right">
+          <div style="display:flex; justify-content:flex-end; gap:6px">
+            ${isAdmin ? `<button class="action-btn-pill edit" onclick="editZone(${z.id})">✍ Edit</button>` : ''}
+            ${isAdmin ? `<button class="action-btn-pill delete" onclick="deleteZone(${z.id}, '${escapeHtml(z.label)}')">🗑️ Hapus</button>` : ''}
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  tbody.innerHTML = rows || '<tr><td colspan="5" style="text-align:center; padding:24px; color:var(--text-muted)">Belum ada kategori gedung.</td></tr>';
+}
+
+function openAddZoneForm() {
+  $('#zf-id').value = '';
+  $('#zf-key').value = '';
+  $('#zf-key').disabled = false;
+  $('#zf-label').value = '';
+  $('#zf-order').value = ZONES.length + 1;
+  $('#zf-err').textContent = '';
+  $('#zone-form-title').textContent = '＋ Tambah Kategori Utama';
+  $('#zone-form-box').style.display = 'block';
+}
+
+function editZone(id) {
+  const z = ZONES.find(item => item.id === id);
+  if (!z) return;
+
+  $('#zf-id').value = z.id;
+  $('#zf-key').value = z.key;
+  $('#zf-key').disabled = true;
+  $('#zf-label').value = z.label;
+  $('#zf-order').value = z.sort_order || 0;
+  $('#zf-err').textContent = '';
+  $('#zone-form-title').textContent = `✍ Edit Kategori Utama (${z.key})`;
+  $('#zone-form-box').style.display = 'block';
+}
+
+function closeZoneForm() {
+  $('#zone-form-box').style.display = 'none';
+  $('#zf-err').textContent = '';
+}
+
+async function submitZoneForm() {
+  const id = $('#zf-id').value;
+  const key = $('#zf-key').value.trim();
+  const label = $('#zf-label').value.trim();
+  const order = parseInt($('#zf-order').value) || 0;
+  const errEl = $('#zf-err');
+
+  errEl.textContent = '';
+  if (!label) {
+    errEl.textContent = 'Nama / Label kategori wajib diisi';
+    return;
+  }
+
+  try {
+    let res;
+    if (id) {
+      res = await api.put(`/api/devices/zones/${id}`, { label, sort_order: order });
+    } else {
+      if (!key) {
+        errEl.textContent = 'Kode Unique (Key) wajib diisi';
+        return;
+      }
+      res = await api.post('/api/devices/zones', { zone_key: key, label, sort_order: order });
+    }
+
+    if (!res || !res.ok) {
+      const err = res ? await res.json() : {};
+      throw new Error(err.error || 'Gagal menyimpan kategori');
+    }
+
+    showToast(`Kategori Utama "${label}" berhasil disimpan`, 'success');
+    closeZoneForm();
+    await loadZones();
+    renderZonesTable();
+    renderSidebar();
+  } catch (err) {
+    errEl.textContent = err.message;
+  }
+}
+
+async function deleteZone(id, label) {
+  if (!confirm(`Apakah Anda yakin ingin menghapus kategori "${label}"?`)) return;
+
+  try {
+    const res = await api.delete(`/api/devices/zones/${id}`);
+    if (!res || !res.ok) {
+      const err = res ? await res.json() : {};
+      throw new Error(err.error || 'Gagal menghapus kategori');
+    }
+
+    showToast(`Kategori Utama "${label}" berhasil dihapus`, 'info');
+    await loadZones();
+    renderZonesTable();
+    renderSidebar();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
+/* ── SUB-CATEGORY MANAGEMENT FUNCTIONS ── */
+
+function populateSubCatZoneFilters() {
+  const filterSelect = $('#subcat-filter-zone');
+  const formSelect = $('#scf-zone');
+  if (!filterSelect || !formSelect) return;
+
+  const prevFilterVal = filterSelect.value || 'ALL';
+
+  let filterOptions = '<option value="ALL">-- Semua Kategori Utama --</option>';
+  let formOptions = '<option value="">-- Pilih Kategori Utama --</option>';
+
+  ZONES.forEach(z => {
+    filterOptions += `<option value="${z.key}">${escapeHtml(z.label)} (${z.key})</option>`;
+    formOptions += `<option value="${z.key}">${escapeHtml(z.label)} (${z.key})</option>`;
+  });
+
+  filterSelect.innerHTML = filterOptions;
+  filterSelect.value = prevFilterVal;
+  formSelect.innerHTML = formOptions;
+}
+
+async function renderSubCategoriesTable() {
+  const tbody = $('#subcat-table-body');
+  if (!tbody) return;
+
+  const filterZone = $('#subcat-filter-zone') ? $('#subcat-filter-zone').value : 'ALL';
+  const searchQuery = $('#subcat-search-input') ? $('#subcat-search-input').value.trim().toLowerCase() : '';
+  const isAdmin = currentUser && currentUser.role === 'admin';
+
+  let list = allLocations;
+  if (filterZone && filterZone !== 'ALL') {
+    list = list.filter(l => l.zone === filterZone);
+  }
+  if (searchQuery) {
+    list = list.filter(l => l.nama.toLowerCase().includes(searchQuery) || l.id.toLowerCase().includes(searchQuery));
+  }
+
+  const rows = list.map((l, idx) => {
+    const parentZone = ZONES.find(z => z.key === l.zone);
+    const zoneLabel = parentZone ? parentZone.label : l.zone;
+    const devCount = deviceCount(l.id);
+
+    return `
+      <tr>
+        <td style="font-family:var(--mono); font-size:12px; color:var(--text-muted); text-align:center; font-weight:600">${idx + 1}</td>
+        <td style="font-weight:600; color:#fff">${escapeHtml(l.nama)}</td>
+        <td><span class="zone-badge" style="background:rgba(56,189,248,0.12); color:#38BDF8; border:1px solid rgba(56,189,248,0.25); padding:3px 8px; border-radius:12px; font-size:11.5px">${escapeHtml(zoneLabel)}</span></td>
+        <td><span class="zcount" style="background:rgba(255,255,255,0.06); color:var(--text-muted); padding:3px 8px; border-radius:10px; font-size:11px">${devCount} perangkat</span></td>
+        <td style="text-align:right">
+          <div style="display:flex; justify-content:flex-end; gap:6px">
+            ${isAdmin ? `<button class="action-btn-pill edit" onclick="editSubCat('${l.id}')">✍ Edit</button>` : ''}
+            ${isAdmin ? `<button class="action-btn-pill delete" onclick="deleteSubCat('${l.id}', '${escapeHtml(l.nama)}')">🗑️ Hapus</button>` : ''}
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  tbody.innerHTML = rows || '<tr><td colspan="5" style="text-align:center; padding:24px; color:var(--text-muted)">Tidak ditemukan sub-kategori yang sesuai.</td></tr>';
+}
+
+function openAddSubCatForm() {
+  populateSubCatZoneFilters();
+  $('#scf-id').value = '';
+  $('#scf-name').value = '';
+  $('#scf-zone').value = ZONES.length > 0 ? ZONES[0].key : '';
+  $('#scf-err').textContent = '';
+  $('#subcat-form-title').textContent = '＋ Tambah Sub-Kategori / Ruangan Baru';
+  $('#subcat-form-box').style.display = 'block';
+}
+
+function editSubCat(id) {
+  const loc = allLocations.find(l => l.id === id);
+  if (!loc) return;
+
+  populateSubCatZoneFilters();
+  $('#scf-id').value = loc.id;
+  $('#scf-name').value = loc.nama;
+  $('#scf-zone').value = loc.zone;
+  $('#scf-err').textContent = '';
+  $('#subcat-form-title').textContent = `✍ Edit Sub-Kategori (${loc.nama})`;
+  $('#subcat-form-box').style.display = 'block';
+}
+
+function closeSubCatForm() {
+  $('#subcat-form-box').style.display = 'none';
+  $('#scf-err').textContent = '';
+}
+
+async function submitSubCatForm() {
+  const id = $('#scf-id').value;
+  const name = $('#scf-name').value.trim();
+  const zoneKey = $('#scf-zone').value;
+  const errEl = $('#scf-err');
+
+  errEl.textContent = '';
+  if (!name || !zoneKey) {
+    errEl.textContent = 'Nama sub-kategori dan Kategori Utama wajib diisi';
+    return;
+  }
+
+  try {
+    let res;
+    if (id) {
+      res = await api.put(`/api/devices/locations/${id}`, { nama: name, zone_key: zoneKey });
+    } else {
+      res = await api.post('/api/devices/locations', { nama: name, zone_key: zoneKey });
+    }
+
+    if (!res || !res.ok) {
+      const err = res ? await res.json() : {};
+      throw new Error(err.error || 'Gagal menyimpan sub-kategori');
+    }
+
+    showToast(`Sub-kategori "${name}" berhasil disimpan`, 'success');
+    closeSubCatForm();
+    await loadSubCategories();
+    renderSubCategoriesTable();
+    renderSidebar();
+    renderTopology();
+  } catch (err) {
+    errEl.textContent = err.message;
+  }
+}
+
+async function deleteSubCat(id, name) {
+  if (!confirm(`Apakah Anda yakin ingin menghapus sub-kategori "${name}"?`)) return;
+
+  try {
+    const res = await api.delete(`/api/devices/locations/${id}`);
+    if (!res || !res.ok) {
+      const err = res ? await res.json() : {};
+      throw new Error(err.error || 'Gagal menghapus sub-kategori');
+    }
+
+    showToast(`Sub-kategori "${name}" berhasil dihapus`, 'info');
+    await loadSubCategories();
+    renderSubCategoriesTable();
+    renderSidebar();
+    renderTopology();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
 
 init();
