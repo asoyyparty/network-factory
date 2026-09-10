@@ -2737,4 +2737,556 @@ button:focus:not(:focus-visible) { outline: none; }
   }
 }
 
+/* ── 10.7 LOCATION DETAIL & DEVICE TELEMETRY WORKBENCH (Hallmark Industrial Standard) ───── */
+
+#detail-panel {
+  height: 100%;
+  overflow-y: auto;
+  padding: 20px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--color-paper);
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Contextual Navigation Bar ── */
+.detail-nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: -2px;
+}
+.detail-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+.detail-back-btn:hover {
+  background: var(--color-paper-hover);
+  border-color: var(--color-rule-focus);
+  color: var(--accent);
+}
+.detail-back-btn:active {
+  transform: translateY(1px);
+}
+
+/* ── Site Mission Header ── */
+.detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  border-radius: 6px;
+  gap: 16px;
+  flex-wrap: wrap;
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.15s ease;
+}
+.detail-head.s-ok {
+  border-left-color: var(--ok);
+}
+.detail-head.s-alert {
+  border-left-color: var(--alert);
+  background: linear-gradient(to right, rgba(248, 81, 73, 0.05), var(--panel) 25%);
+}
+.detail-head.s-warn {
+  border-left-color: var(--warn);
+}
+.detail-head.s-idle {
+  border-left-color: var(--idle);
+}
+
+.dh-lead {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+.dh-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.06em;
+}
+.dh-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
+
+.dh-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+.dh-btn:hover {
+  background: var(--color-paper-hover);
+  border-color: var(--color-rule-focus);
+  color: var(--text);
+}
+.dh-btn:active {
+  transform: translateY(1px);
+}
+.dh-btn.primary {
+  background: var(--accent);
+  color: #04202A;
+  border: 1px solid var(--accent);
+  box-shadow: 0 2px 8px var(--accent-glow);
+}
+.dh-btn.primary:hover {
+  background: #7DD3FC;
+  border-color: #7DD3FC;
+  color: #04202A;
+  box-shadow: 0 4px 12px var(--accent-glow);
+}
+
+/* ── Site Telemetry Metrics Strip ── */
+.detail-metrics-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+/* ── Device Control & Filter Bar ── */
+.detail-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.df-status-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.df-pill {
+  padding: 4px 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+.df-pill:hover {
+  background: var(--color-paper-hover);
+  border-color: var(--color-rule-focus);
+  color: var(--text);
+}
+.df-pill.active {
+  background: var(--accent);
+  color: #04202A;
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.df-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.df-select {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  font-family: var(--sans);
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.df-select:focus {
+  border-color: var(--color-focus);
+}
+.df-search {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 4px 24px 4px 26px;
+  font-size: 11.5px;
+  font-family: var(--sans);
+  outline: none;
+  width: 170px;
+  transition: all 0.15s ease;
+}
+.df-search:focus {
+  border-color: var(--color-focus);
+  width: 220px;
+}
+
+/* ── Desktop Industrial Table ── */
+.device-table-wrap {
+  overflow-x: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-top: 0;
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.4);
+  -webkit-overflow-scrolling: touch;
+}
+.device-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  min-width: 780px;
+}
+.device-table th {
+  text-align: left;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  color: var(--color-ink-3);
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  background: var(--panel-2);
+  white-space: nowrap;
+}
+.device-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.device-table tr:last-child td {
+  border-bottom: none;
+}
+.device-table tr.is-offline-row td {
+  background: rgba(248, 81, 73, 0.03);
+}
+
+.dt-dev-name-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dt-dev-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.dt-dev-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.25;
+}
+.dt-dev-sub {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+}
+
+.dt-ip-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dt-ip-code {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--color-ink-1);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 6px;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  display: inline-flex;
+  align-items: center;
+}
+.dt-ip-code:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(56, 189, 248, 0.08);
+}
+.dt-mac-code {
+  display: block;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--color-ink-3);
+  margin-top: 2px;
+}
+.dt-status-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.dt-notes {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-family: var(--sans);
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+/* ── Mobile Telemetry Device Cards (Dual Presentation) ── */
+.dev-cards-mobile {
+  display: none;
+}
+.dev-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  border-radius: 6px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 4px 10px -2px rgba(0, 0, 0, 0.35);
+  transition: border-color 0.15s ease;
+}
+.dev-card.s-online {
+  border-left-color: var(--ok);
+}
+.dev-card.s-offline {
+  border-left-color: var(--alert);
+  background: linear-gradient(to right, rgba(248, 81, 73, 0.05), var(--panel) 25%);
+}
+.dev-card.s-maintenance {
+  border-left-color: var(--warn);
+}
+.dev-card.s-unknown {
+  border-left-color: var(--idle);
+}
+
+.dev-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.dev-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--color-ink-3);
+}
+.dev-card-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 2px 0 0;
+  line-height: 1.25;
+}
+
+.dev-card-network {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 5px 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.dev-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  margin-top: 2px;
+}
+
+/* ── Mobile Responsive Overrides for Location Detail (Hallmark Gates 49, 50, 52) ── */
+@media (max-width: 768px) {
+  #detail-panel {
+    padding: 12px 12px max(20px, env(safe-area-inset-bottom));
+    gap: 10px;
+  }
+
+  .detail-nav-bar {
+    margin-bottom: 0;
+  }
+  .detail-back-btn {
+    min-height: 38px;
+    padding: 6px 12px;
+    font-size: 11px;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .detail-head {
+    padding: 12px 14px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .dh-lead {
+    width: 100%;
+  }
+  .dh-title {
+    font-size: 16px;
+  }
+  .dh-actions {
+    width: 100%;
+    display: flex;
+    gap: 6px;
+  }
+  .dh-btn {
+    flex: 1;
+    min-height: 42px;
+    justify-content: center;
+    font-size: 11px;
+    padding: 8px 10px;
+  }
+
+  /* Telemetry Quad Monospace Strip on Mobile */
+  .detail-metrics-strip {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    padding: 8px 10px;
+  }
+  .detail-metrics-strip .tcm-sep {
+    display: none;
+  }
+  .detail-metrics-strip .tcm-item {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+  }
+  .detail-metrics-strip .tcm-k {
+    font-size: 8.5px;
+  }
+  .detail-metrics-strip .tcm-v {
+    font-size: 12px;
+  }
+
+  /* Filter Bar Mobile */
+  .detail-filter-bar {
+    padding: 10px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .df-status-group {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+    gap: 4px;
+    padding-bottom: 2px;
+  }
+  .df-status-group::-webkit-scrollbar {
+    display: none;
+  }
+  .df-pill {
+    flex: 0 0 auto;
+    min-height: 38px;
+    padding: 6px 10px;
+    font-size: 10.5px;
+  }
+  .df-right {
+    width: 100%;
+    display: flex;
+    gap: 6px;
+  }
+  .df-select {
+    flex: 1;
+    min-height: 40px;
+    font-size: 12px;
+  }
+  .df-search {
+    width: 100% !important;
+    min-height: 40px;
+    font-size: 12px;
+  }
+  .detail-filter-bar .tt-search-wrap {
+    flex: 1;
+  }
+
+  /* Dual Presentation: Hide Desktop Table on Mobile, Show Telemetry Cards */
+  #detail-panel .device-table-wrap {
+    display: none !important;
+  }
+  .dev-cards-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* Touch Target Discipline on Mobile Device Cards (>= 44px) */
+  .dev-card-actions .icon-btn {
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 6px;
+    font-size: 14px;
+    flex: 1;
+  }
+}
+
+
 
