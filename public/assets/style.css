@@ -252,6 +252,10 @@
   padding: 18px 24px;
   overflow-y: auto;
   height: 100%;
+  flex: 1;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
 }
 
 .grid-toolbar {
@@ -651,6 +655,8 @@
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
+  white-space: nowrap;
+  touch-action: manipulation;
 }
 .bcard-btn:hover {
   background: var(--color-paper-hover);
@@ -733,14 +739,305 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ══ 10.5.1 RESPONSIVE MOBILE DISCIPLINE (Hallmark Gates 34, 49, 50, 51) ══ */
 @media (max-width: 768px) {
-  #grid-view-panel { padding: 12px 10px; }
-  .grid-layout { grid-template-columns: minmax(0, 1fr); gap: 10px; }
-  .matrix-layout { grid-template-columns: repeat(2, 1fr); gap: 6px; }
-  .grid-toolbar { padding: 8px 10px; }
-  .gt-summary { display: none; }
-  .tcard-metrics { font-size: 9.5px; padding: 5px 8px; }
-  .bcard-btn { min-height: 44px; }
+  #grid-view-panel {
+    padding: 12px 12px max(16px, env(safe-area-inset-bottom));
+  }
+  .grid-toolbar {
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    gap: 8px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .gt-left {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .gt-tag {
+    font-size: 10.5px;
+    white-space: nowrap;
+  }
+  .gt-summary {
+    display: none;
+  }
+  .gt-right {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .gt-control-group {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .gt-lbl {
+    font-size: 9.5px;
+    flex-shrink: 0;
+  }
+  .gt-select {
+    flex: 1;
+    min-width: 0;
+    min-height: 42px;
+    font-size: 12px;
+    padding: 6px 10px;
+    touch-action: manipulation;
+  }
+  .gt-view-toggle {
+    display: flex;
+    flex-shrink: 0;
+  }
+  .gt-btn {
+    min-height: 42px;
+    padding: 6px 11px;
+    font-size: 10.5px;
+    touch-action: manipulation;
+  }
+
+  .grid-layout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .bcard {
+    padding: 12px 14px;
+    gap: 9px;
+  }
+  .bcard-head {
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .bcard-title {
+    font-size: 14px;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+    min-width: 0;
+  }
+  .bcard-badge {
+    font-size: 9.5px;
+    padding: 3px 6px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .bcard-btn {
+    min-height: 44px;
+    font-size: 11px;
+    white-space: nowrap;
+    touch-action: manipulation;
+  }
+
+  .matrix-layout {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .matrix-tile {
+    min-height: 52px;
+    padding: 8px 10px;
+    touch-action: manipulation;
+  }
+}
+
+@media (max-width: 480px) {
+  #grid-view-panel {
+    padding: 10px 10px max(14px, env(safe-area-inset-bottom));
+  }
+  .grid-toolbar {
+    padding: 8px 10px;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .gt-tag {
+    font-size: 9.5px;
+  }
+  .gt-lbl {
+    display: none;
+  }
+  .gt-select {
+    font-size: 11.5px;
+    padding: 6px 8px;
+    min-height: 40px;
+  }
+  .gt-btn {
+    min-height: 40px;
+    padding: 5px 8px;
+    font-size: 10px;
+  }
+
+  .grid-layout {
+    gap: 10px;
+  }
+  .bcard {
+    padding: 11px 12px;
+    gap: 8px;
+  }
+  .bcard-title {
+    font-size: 13.5px;
+  }
+  .bcard-badge {
+    font-size: 9px;
+    padding: 2.5px 5.5px;
+  }
+
+  /* 4-Quadrant Symmetrical Telemetry Monospace Quad */
+  .tcard-metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 2px;
+    padding: 6px 4px;
+    text-align: center;
+  }
+  .tcm-sep {
+    display: none;
+  }
+  .tcm-item {
+    flex-direction: column;
+    gap: 1px;
+    align-items: center;
+    justify-content: center;
+  }
+  .tcm-k {
+    font-size: 8px;
+    letter-spacing: 0.03em;
+  }
+  .tcm-v {
+    font-size: 11px;
+  }
+
+  .tcard-dev-row {
+    padding: 5px 7px;
+  }
+  .tcard-dev-name {
+    font-size: 11px;
+  }
+  .tcard-dev-trail {
+    gap: 4px;
+    font-size: 9.5px;
+  }
+  .tcard-dev-ip {
+    font-size: 9.5px;
+  }
+  .tcard-dev-lat {
+    font-size: 8.5px;
+  }
+}
+
+@media (max-width: 360px) {
+  #grid-view-panel {
+    padding: 8px 6px max(12px, env(safe-area-inset-bottom));
+  }
+  .grid-toolbar {
+    padding: 6px 8px;
+    gap: 6px;
+  }
+  .gt-tag {
+    font-size: 8.5px;
+    letter-spacing: 0.04em;
+  }
+  .gt-fault-badge,
+  .gt-ok-badge {
+    font-size: 8.5px;
+    padding: 2px 5px;
+  }
+  .gt-btn span {
+    display: none;
+  }
+  .gt-btn {
+    padding: 5px 8px;
+  }
+
+  .bcard {
+    padding: 9px 10px;
+    gap: 7px;
+  }
+  .bcard-meta {
+    gap: 3px;
+  }
+  .bcard-zone {
+    font-size: 8.5px;
+  }
+  .bcard-id-tag {
+    font-size: 8px;
+    padding: 1px 3px;
+  }
+  .bcard-title {
+    font-size: 12.5px;
+  }
+  .bcard-badge {
+    font-size: 8.5px;
+    padding: 2px 4.5px;
+  }
+
+  /* Compact Roster on 320px: hide text tag, let IP and colored dot shine */
+  .tcard-dev-tag {
+    display: none;
+  }
+  .tcard-dev-name {
+    font-size: 10.5px;
+  }
+  .tcard-dev-ip {
+    font-size: 9px;
+  }
+
+  .bcard-btn {
+    font-size: 10px;
+    padding: 6px 8px;
+    min-height: 42px;
+  }
+
+  .matrix-layout {
+    gap: 4px;
+  }
+  .matrix-tile {
+    padding: 6px 7px;
+    min-height: 48px;
+  }
+  .mt-code {
+    font-size: 8px;
+  }
+  .mt-name {
+    font-size: 10.5px;
+  }
+  .mt-foot {
+    font-size: 8.5px;
+  }
+  .mt-status-tag {
+    font-size: 8.5px;
+  }
+}
+
+/* Touch Device Interaction Physics */
+@media (hover: none) {
+  .bcard:hover {
+    transform: none;
+    box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.4);
+  }
+  .matrix-tile:hover {
+    transform: none;
+    background: var(--panel);
+  }
+}
+
+@media (pointer: coarse) {
+  .bcard:active {
+    transform: scale(0.995);
+  }
+  .matrix-tile:active {
+    transform: scale(0.98);
+    background: var(--color-paper-hover);
+  }
+  .gt-btn:active {
+    transform: translateY(1px);
+  }
+  .bcard-btn:active {
+    transform: translateY(1px);
+    background: var(--panel-hover);
+  }
 }
 
 /* ── FUTURISTIC SCI-FI RADIAL TOPOLOGY SVG ──────────────────────────────── */
