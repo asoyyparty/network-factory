@@ -492,7 +492,13 @@ router.delete('/os/:id', async (req, res) => {
 /* ── GET /api/devices/zones ── */
 router.get('/zones', async (req, res) => {
   try {
-    const [rows] = await db.execute('SELECT id, zone_key, label, sort_order FROM zones ORDER BY sort_order, id');
+    const [rows] = await db.execute(`
+      SELECT z.id, z.zone_key, z.label, z.sort_order,
+        COALESCE((SELECT COUNT(*) FROM locations l WHERE l.zone_key = z.zone_key), 0) AS location_count,
+        COALESCE((SELECT COUNT(*) FROM devices d JOIN locations l ON d.loc_id = l.id WHERE l.zone_key = z.zone_key), 0) AS device_count
+      FROM zones z
+      ORDER BY z.sort_order, z.id
+    `);
     res.json({ zones: rows });
   } catch (err) {
     console.error(err);
@@ -558,6 +564,15 @@ router.delete('/zones/:id', async (req, res) => {
     if (zRows.length === 0) return res.status(404).json({ error: 'Kategori tidak ditemukan' });
     
     const zone = zRows[0];
+
+    // Check if subcategories/locations are attached to this zone
+    const [lRows] = await db.execute('SELECT COUNT(*) as cnt FROM locations WHERE zone_key = ?', [zone.zone_key]);
+    if (lRows[0].cnt > 0) {
+      return res.status(400).json({
+        error: `Tidak dapat menghapus "${zone.label}" karena masih memiliki ${lRows[0].cnt} sub-kategori/ruangan. Hapus atau pindahkan sub-kategori terlebih dahulu.`
+      });
+    }
+
     await db.execute('DELETE FROM zones WHERE id = ?', [req.params.id]);
 
     logAudit(req.user.username, 'Hapus Kategori Gedung', zone.label, `Key: ${zone.zone_key}`);
@@ -573,7 +588,14 @@ router.delete('/zones/:id', async (req, res) => {
 /* ── GET /api/devices/locations ── */
 router.get('/locations', async (req, res) => {
   try {
-    const [rows] = await db.execute('SELECT id, nama, zone_key, sort_order FROM locations ORDER BY sort_order, nama');
+    const [rows] = await db.execute(`
+      SELECT l.id, l.nama, l.zone_key, l.sort_order,
+        COALESCE(z.label, l.zone_key) AS zone_label,
+        COALESCE((SELECT COUNT(*) FROM devices d WHERE d.loc_id = l.id), 0) AS device_count
+      FROM locations l
+      LEFT JOIN zones z ON l.zone_key = z.zone_key
+      ORDER BY l.sort_order, l.nama
+    `);
     res.json({ locations: rows });
   } catch (err) {
     console.error(err);

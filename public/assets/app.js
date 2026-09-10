@@ -153,7 +153,9 @@ async function loadZones() {
           id: z.id,
           key: z.zone_key,
           label: z.label,
-          sort_order: z.sort_order
+          sort_order: z.sort_order,
+          location_count: Number(z.location_count) || 0,
+          device_count: Number(z.device_count) || 0
         }));
       }
     }
@@ -4712,7 +4714,9 @@ async function loadSubCategories() {
           id: l.id,
           nama: l.nama,
           zone: l.zone_key,
-          sort_order: l.sort_order
+          zone_label: l.zone_label || l.zone_key,
+          sort_order: l.sort_order,
+          device_count: Number(l.device_count) || 0
         }));
         state.locations = allLocations;
       }
@@ -4722,9 +4726,30 @@ async function loadSubCategories() {
   }
 }
 
-/* ── 20C. ZONE & SUB-CATEGORY MANAGEMENT MODAL ───────────────────────── */
+/* ── 20C. ZONE & SUB-CATEGORY MANAGEMENT MODAL (HALLMARK REDESIGN) ─── */
 let activeCatTab = 'main'; // 'main' or 'sub'
 let allLocations = SEED_LOCATIONS;
+
+function updateZonesModalStats() {
+  const elCountZones = $('#badge-count-zones');
+  const elCountSubcat = $('#badge-count-subcat');
+  const elStatZones = $('#zh-stat-zones');
+  const elStatLocations = $('#zh-stat-locations');
+  const elStatDevices = $('#zh-stat-devices');
+
+  const totalZones = ZONES.length;
+  const totalLocations = allLocations.length;
+  let totalDevs = 0;
+  allLocations.forEach(l => {
+    totalDevs += (l.device_count !== undefined ? Number(l.device_count) : deviceCount(l.id));
+  });
+
+  if (elCountZones) elCountZones.textContent = totalZones;
+  if (elCountSubcat) elCountSubcat.textContent = totalLocations;
+  if (elStatZones) elStatZones.textContent = totalZones;
+  if (elStatLocations) elStatLocations.textContent = totalLocations;
+  if (elStatDevices) elStatDevices.textContent = totalDevs;
+}
 
 async function openZonesModal() {
   const modal = $('#zones-modal');
@@ -4732,6 +4757,7 @@ async function openZonesModal() {
   
   await loadZones();
   await loadSubCategories();
+  updateZonesModalStats();
   switchCategoryTab(activeCatTab || 'main');
   closeZoneForm();
   closeSubCatForm();
@@ -4768,29 +4794,97 @@ function switchCategoryTab(tab) {
 
 function renderZonesTable() {
   const tbody = $('#zones-table-body');
-  if (!tbody) return;
+  const cardsContainer = $('#zones-cards-body');
+  if (!tbody && !cardsContainer) return;
 
+  const searchQuery = ($('#zone-search-input') ? $('#zone-search-input').value : '').trim().toLowerCase();
   const isAdmin = currentUser && currentUser.role === 'admin';
 
-  const rows = ZONES.map(z => {
-    const locs = locationsByZone(z.key);
-    return `
-      <tr>
-        <td style="font-family:var(--mono); font-weight:700; color:var(--accent)">${escapeHtml(z.key)}</td>
-        <td style="font-weight:600; color:#fff">${escapeHtml(z.label)}</td>
-        <td style="font-family:var(--mono); text-align:center">${z.sort_order || 0}</td>
-        <td><span class="zone-badge" style="background:rgba(56,189,248,0.12); color:#38BDF8; border:1px solid rgba(56,189,248,0.25); padding:3px 8px; border-radius:12px; font-size:11.5px">${locs.length} sub-kategori</span></td>
-        <td style="text-align:right">
-          <div style="display:flex; justify-content:flex-end; gap:6px">
-            ${isAdmin ? `<button class="action-btn-pill edit" onclick="editZone(${z.id})">✍ Edit</button>` : ''}
-            ${isAdmin ? `<button class="action-btn-pill delete" onclick="deleteZone(${z.id}, '${escapeHtml(z.label)}')">🗑️ Hapus</button>` : ''}
-          </div>
-        </td>
-      </tr>
-    `;
-  }).join('');
+  let list = ZONES;
+  if (searchQuery) {
+    list = list.filter(z => 
+      (z.key && z.key.toLowerCase().includes(searchQuery)) || 
+      (z.label && z.label.toLowerCase().includes(searchQuery))
+    );
+  }
 
-  tbody.innerHTML = rows || '<tr><td colspan="5" style="text-align:center; padding:24px; color:var(--text-muted)">Belum ada kategori gedung.</td></tr>';
+  // 1. Render Desktop Table
+  if (tbody) {
+    const rows = list.map(z => {
+      const locs = locationsByZone(z.key);
+      const locCount = z.location_count !== undefined ? z.location_count : locs.length;
+      let devCount = z.device_count !== undefined ? z.device_count : 0;
+      if (z.device_count === undefined) {
+        locs.forEach(l => devCount += deviceCount(l.id));
+      }
+
+      return `
+        <tr>
+          <td><span class="zh-key-badge">${escapeHtml(z.key)}</span></td>
+          <td style="font-weight:600; color:#fff">${escapeHtml(z.label)}</td>
+          <td style="font-family:var(--mono); text-align:center">${z.sort_order || 0}</td>
+          <td><span class="zh-count-pill ${locCount > 0 ? 'has-items' : ''}">${locCount} ruangan</span></td>
+          <td><span class="zh-count-pill ${devCount > 0 ? 'has-items' : ''}">${devCount} unit</span></td>
+          <td style="text-align:right">
+            <div style="display:flex; justify-content:flex-end; gap:6px">
+              ${isAdmin ? `
+                <button class="action-btn-pill edit zh-tbl-btn" onclick="editZone(${z.id})">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  <span>Edit</span>
+                </button>
+                <button class="action-btn-pill delete zh-tbl-btn" onclick="deleteZone(${z.id}, '${escapeHtml(z.label)}')">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                  <span>Hapus</span>
+                </button>
+              ` : '<span style="color:var(--text-muted); font-size:11px">Read-only</span>'}
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    tbody.innerHTML = rows || '<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted)">Tidak ditemukan kategori gedung yang cocok.</td></tr>';
+  }
+
+  // 2. Render Mobile Cards (Hallmark Gate 52 Dual Presentation)
+  if (cardsContainer) {
+    const cards = list.map(z => {
+      const locs = locationsByZone(z.key);
+      const locCount = z.location_count !== undefined ? z.location_count : locs.length;
+      let devCount = z.device_count !== undefined ? z.device_count : 0;
+      if (z.device_count === undefined) {
+        locs.forEach(l => devCount += deviceCount(l.id));
+      }
+
+      return `
+        <div class="zh-card">
+          <div class="zh-card-head">
+            <span class="zh-card-key">${escapeHtml(z.key)}</span>
+            <span class="zh-card-order">Urutan: ${z.sort_order || 0}</span>
+          </div>
+          <div class="zh-card-title">${escapeHtml(z.label)}</div>
+          <div class="zh-card-meta-row">
+            <span class="zh-count-pill ${locCount > 0 ? 'has-items' : ''}">${locCount} Ruangan</span>
+            <span class="zh-count-pill ${devCount > 0 ? 'has-items' : ''}">${devCount} Perangkat Terhubung</span>
+          </div>
+          ${isAdmin ? `
+            <div class="zh-card-actions">
+              <button class="action-btn-pill edit zh-card-btn" onclick="editZone(${z.id})">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                <span>Edit Kategori</span>
+              </button>
+              <button class="action-btn-pill delete zh-card-btn" onclick="deleteZone(${z.id}, '${escapeHtml(z.label)}')">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                <span>Hapus</span>
+              </button>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }).join('');
+
+    cardsContainer.innerHTML = cards || '<div style="text-align:center; padding:24px; color:var(--text-muted)">Tidak ditemukan kategori gedung.</div>';
+  }
 }
 
 function openAddZoneForm() {
@@ -4800,7 +4894,7 @@ function openAddZoneForm() {
   $('#zf-label').value = '';
   $('#zf-order').value = ZONES.length + 1;
   $('#zf-err').textContent = '';
-  $('#zone-form-title').textContent = '＋ Tambah Kategori Utama';
+  $('#zone-form-title').textContent = 'Tambah Kategori Utama';
   $('#zone-form-box').style.display = 'block';
 }
 
@@ -4814,7 +4908,7 @@ function editZone(id) {
   $('#zf-label').value = z.label;
   $('#zf-order').value = z.sort_order || 0;
   $('#zf-err').textContent = '';
-  $('#zone-form-title').textContent = `✍ Edit Kategori Utama (${z.key})`;
+  $('#zone-form-title').textContent = `Edit Kategori Utama (${z.key})`;
   $('#zone-form-box').style.display = 'block';
 }
 
@@ -4856,7 +4950,9 @@ async function submitZoneForm() {
     showToast(`Kategori Utama "${label}" berhasil disimpan`, 'success');
     closeZoneForm();
     await loadZones();
+    updateZonesModalStats();
     renderZonesTable();
+    populateSubCatZoneFilters();
     renderSidebar();
   } catch (err) {
     errEl.textContent = err.message;
@@ -4875,7 +4971,9 @@ async function deleteZone(id, label) {
 
     showToast(`Kategori Utama "${label}" berhasil dihapus`, 'info');
     await loadZones();
+    updateZonesModalStats();
     renderZonesTable();
+    populateSubCatZoneFilters();
     renderSidebar();
   } catch (err) {
     showToast(err.message, 'error');
@@ -4891,7 +4989,7 @@ function populateSubCatZoneFilters() {
 
   const prevFilterVal = filterSelect.value || 'ALL';
 
-  let filterOptions = '<option value="ALL">-- Semua Kategori Utama --</option>';
+  let filterOptions = '<option value="ALL">Semua Kategori Utama</option>';
   let formOptions = '<option value="">-- Pilih Kategori Utama --</option>';
 
   ZONES.forEach(z => {
@@ -4906,10 +5004,11 @@ function populateSubCatZoneFilters() {
 
 async function renderSubCategoriesTable() {
   const tbody = $('#subcat-table-body');
-  if (!tbody) return;
+  const cardsContainer = $('#subcat-cards-body');
+  if (!tbody && !cardsContainer) return;
 
   const filterZone = $('#subcat-filter-zone') ? $('#subcat-filter-zone').value : 'ALL';
-  const searchQuery = $('#subcat-search-input') ? $('#subcat-search-input').value.trim().toLowerCase() : '';
+  const searchQuery = ($('#subcat-search-input') ? $('#subcat-search-input').value : '').trim().toLowerCase();
   const isAdmin = currentUser && currentUser.role === 'admin';
 
   let list = allLocations;
@@ -4917,31 +5016,80 @@ async function renderSubCategoriesTable() {
     list = list.filter(l => l.zone === filterZone);
   }
   if (searchQuery) {
-    list = list.filter(l => l.nama.toLowerCase().includes(searchQuery) || l.id.toLowerCase().includes(searchQuery));
+    list = list.filter(l => 
+      (l.nama && l.nama.toLowerCase().includes(searchQuery)) || 
+      (l.id && l.id.toLowerCase().includes(searchQuery)) ||
+      (l.zone && l.zone.toLowerCase().includes(searchQuery)) ||
+      (l.zone_label && l.zone_label.toLowerCase().includes(searchQuery))
+    );
   }
 
-  const rows = list.map((l, idx) => {
-    const parentZone = ZONES.find(z => z.key === l.zone);
-    const zoneLabel = parentZone ? parentZone.label : l.zone;
-    const devCount = deviceCount(l.id);
+  // 1. Render Desktop Table
+  if (tbody) {
+    const rows = list.map((l, idx) => {
+      const parentZone = ZONES.find(z => z.key === l.zone);
+      const zoneLabel = parentZone ? parentZone.label : (l.zone_label || l.zone);
+      const devCount = l.device_count !== undefined ? l.device_count : deviceCount(l.id);
 
-    return `
-      <tr>
-        <td style="font-family:var(--mono); font-size:12px; color:var(--text-muted); text-align:center; font-weight:600">${idx + 1}</td>
-        <td style="font-weight:600; color:#fff">${escapeHtml(l.nama)}</td>
-        <td><span class="zone-badge" style="background:rgba(56,189,248,0.12); color:#38BDF8; border:1px solid rgba(56,189,248,0.25); padding:3px 8px; border-radius:12px; font-size:11.5px">${escapeHtml(zoneLabel)}</span></td>
-        <td><span class="zcount" style="background:rgba(255,255,255,0.06); color:var(--text-muted); padding:3px 8px; border-radius:10px; font-size:11px">${devCount} perangkat</span></td>
-        <td style="text-align:right">
-          <div style="display:flex; justify-content:flex-end; gap:6px">
-            ${isAdmin ? `<button class="action-btn-pill edit" onclick="editSubCat('${l.id}')">✍ Edit</button>` : ''}
-            ${isAdmin ? `<button class="action-btn-pill delete" onclick="deleteSubCat('${l.id}', '${escapeHtml(l.nama)}')">🗑️ Hapus</button>` : ''}
+      return `
+        <tr>
+          <td style="font-family:var(--mono); font-size:12px; color:var(--text-muted); text-align:center; font-weight:600">${idx + 1}</td>
+          <td style="font-weight:600; color:#fff">${escapeHtml(l.nama)}</td>
+          <td><span class="zh-key-badge">${escapeHtml(zoneLabel)} (${escapeHtml(l.zone)})</span></td>
+          <td><span class="zh-count-pill ${devCount > 0 ? 'has-items' : ''}">${devCount} unit</span></td>
+          <td style="text-align:right">
+            <div style="display:flex; justify-content:flex-end; gap:6px">
+              ${isAdmin ? `
+                <button class="action-btn-pill edit zh-tbl-btn" onclick="editSubCat('${l.id}')">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  <span>Edit</span>
+                </button>
+                <button class="action-btn-pill delete zh-tbl-btn" onclick="deleteSubCat('${l.id}', '${escapeHtml(l.nama)}')">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                  <span>Hapus</span>
+                </button>
+              ` : '<span style="color:var(--text-muted); font-size:11px">Read-only</span>'}
+            </div>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    tbody.innerHTML = rows || '<tr><td colspan="5" style="text-align:center; padding:24px; color:var(--text-muted)">Tidak ditemukan sub-kategori yang sesuai.</td></tr>';
+  }
+
+  // 2. Render Mobile Cards (Hallmark Gate 52 Dual Presentation)
+  if (cardsContainer) {
+    const cards = list.map(l => {
+      const parentZone = ZONES.find(z => z.key === l.zone);
+      const zoneLabel = parentZone ? parentZone.label : (l.zone_label || l.zone);
+      const devCount = l.device_count !== undefined ? l.device_count : deviceCount(l.id);
+
+      return `
+        <div class="zh-card">
+          <div class="zh-card-head">
+            <span class="zh-key-badge">${escapeHtml(zoneLabel)}</span>
+            <span class="zh-count-pill ${devCount > 0 ? 'has-items' : ''}">${devCount} Perangkat</span>
           </div>
-        </td>
-      </tr>
-    `;
-  }).join('');
+          <div class="zh-card-title">${escapeHtml(l.nama)}</div>
+          ${isAdmin ? `
+            <div class="zh-card-actions">
+              <button class="action-btn-pill edit zh-card-btn" onclick="editSubCat('${l.id}')">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                <span>Edit Ruangan</span>
+              </button>
+              <button class="action-btn-pill delete zh-card-btn" onclick="deleteSubCat('${l.id}', '${escapeHtml(l.nama)}')">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                <span>Hapus</span>
+              </button>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }).join('');
 
-  tbody.innerHTML = rows || '<tr><td colspan="5" style="text-align:center; padding:24px; color:var(--text-muted)">Tidak ditemukan sub-kategori yang sesuai.</td></tr>';
+    cardsContainer.innerHTML = cards || '<div style="text-align:center; padding:24px; color:var(--text-muted)">Tidak ditemukan sub-kategori yang sesuai.</div>';
+  }
 }
 
 function openAddSubCatForm() {
@@ -4950,7 +5098,7 @@ function openAddSubCatForm() {
   $('#scf-name').value = '';
   $('#scf-zone').value = ZONES.length > 0 ? ZONES[0].key : '';
   $('#scf-err').textContent = '';
-  $('#subcat-form-title').textContent = '＋ Tambah Sub-Kategori / Ruangan Baru';
+  $('#subcat-form-title').textContent = 'Tambah Sub-Kategori / Ruangan Baru';
   $('#subcat-form-box').style.display = 'block';
 }
 
@@ -4963,7 +5111,7 @@ function editSubCat(id) {
   $('#scf-name').value = loc.nama;
   $('#scf-zone').value = loc.zone;
   $('#scf-err').textContent = '';
-  $('#subcat-form-title').textContent = `✍ Edit Sub-Kategori (${loc.nama})`;
+  $('#subcat-form-title').textContent = `Edit Sub-Kategori (${loc.nama})`;
   $('#subcat-form-box').style.display = 'block';
 }
 
@@ -5000,6 +5148,7 @@ async function submitSubCatForm() {
     showToast(`Sub-kategori "${name}" berhasil disimpan`, 'success');
     closeSubCatForm();
     await loadSubCategories();
+    updateZonesModalStats();
     renderSubCategoriesTable();
     renderSidebar();
     renderTopology();
@@ -5020,6 +5169,7 @@ async function deleteSubCat(id, name) {
 
     showToast(`Sub-kategori "${name}" berhasil dihapus`, 'info');
     await loadSubCategories();
+    updateZonesModalStats();
     renderSubCategoriesTable();
     renderSidebar();
     renderTopology();

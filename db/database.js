@@ -125,6 +125,9 @@ async function initializeDB() {
   const seedTopology = require('./seed_topology');
   await seedTopology(pool);
 
+  const seedZonesAndLocations = require('./seed_zones_locations');
+  await seedZonesAndLocations(pool);
+
   // Seed default device types if empty
   const [typesCount] = await pool.query('SELECT COUNT(*) as count FROM device_types');
   if (typesCount[0].count === 0) {

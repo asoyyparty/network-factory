@@ -4347,10 +4347,692 @@ button:focus:not(:focus-visible) { outline: none; }
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 4px;
   }
-  .spb-pill {
-    min-height: 38px;
+/* ── SECTION 10.10: HALLMARK REDESIGN — HIERARCHY & TAXONOMY MODAL (#zones-modal) ── */
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V5 */
+.zh-modal {
+  max-width: 880px !important;
+  width: 95% !important;
+  max-height: 88vh;
+  background: var(--panel, #0B1220) !important;
+  border: 1px solid rgba(56, 189, 248, 0.25) !important;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+  border-radius: 12px;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+.zh-modal-close {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 20px;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  z-index: 10;
+}
+.zh-modal-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+/* Modal Header Benchmark */
+.zh-modal-header {
+  padding: 16px 20px 14px;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(11, 18, 32, 0.98));
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.zh-lead {
+  flex: 1;
+  min-width: 260px;
+}
+
+.zh-callsign {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+}
+
+.zh-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1.25;
+}
+
+.zh-icon {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.zh-desc {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+/* Segmented Tabs */
+.cat-tabs-segmented {
+  display: inline-flex;
+  background: rgba(2, 6, 23, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 4px;
+}
+
+.cat-tab-pill {
+  min-height: 36px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.cat-tab-pill:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.cat-tab-pill.active {
+  background: var(--accent, #0284c7);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.35);
+}
+
+.cat-tab-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+/* Mini Telemetry Strip */
+.zh-telemetry-strip {
+  background: rgba(15, 23, 42, 0.75);
+  border-bottom: 1px solid var(--border);
+  padding: 7px 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--mono);
+  flex-shrink: 0;
+}
+
+.zh-telemetry-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.zh-tel-label {
+  font-size: 9.5px;
+  color: var(--text-muted);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.zh-tel-val {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.zh-telemetry-sep {
+  color: rgba(255, 255, 255, 0.15);
+  font-weight: 300;
+  font-size: 11px;
+}
+
+/* Modal Body */
+.zh-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px 20px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Toolbar Controls */
+.zh-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.zh-toolbar-sub {
+  align-items: center;
+}
+
+.zh-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.zh-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.zh-filter-lbl {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  letter-spacing: 0.04em;
+}
+
+.zh-select {
+  height: 38px;
+  padding: 0 12px;
+  background: var(--panel-2, #1E293B);
+  color: #fff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12.5px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.zh-select:focus {
+  border-color: var(--accent);
+}
+
+.zh-search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 200px;
+  max-width: 320px;
+  display: flex;
+  align-items: center;
+}
+
+.zh-search-wrap svg {
+  position: absolute;
+  left: 10px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.zh-search-field {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px 0 32px;
+  background: var(--panel-2, #1E293B);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12.5px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.zh-search-field:focus {
+  border-color: var(--accent);
+}
+
+.zh-action-btn {
+  height: 38px;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+/* Form Card */
+.zh-form-card {
+  background: rgba(15, 23, 42, 0.95);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.zh-form-grid-3 {
+  display: grid;
+  grid-template-columns: 1fr 2fr 110px;
+  gap: 12px;
+}
+
+.zh-form-grid-2 {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 12px;
+}
+
+.zh-field-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+  display: block;
+  letter-spacing: 0.02em;
+}
+
+.zh-input-text {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  background: var(--bg, #020617);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12.5px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.zh-input-text:focus {
+  border-color: var(--accent);
+}
+
+.zh-input-text.uppercase {
+  text-transform: uppercase;
+}
+
+.zh-form-err {
+  color: var(--alert, #ef4444);
+  font-size: 11.5px;
+  margin: 8px 0 0;
+  font-family: var(--mono);
+}
+
+.zh-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 10px;
+}
+
+.zh-btn-cancel {
+  height: 36px;
+  padding: 0 14px;
+  font-size: 12px;
+}
+
+.zh-btn-submit {
+  height: 36px;
+  padding: 0 16px;
+  font-size: 12px;
+}
+
+/* Desktop Table & Badges */
+.zh-table-wrap {
+  max-height: 380px;
+  overflow-y: auto;
+  margin: 0;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+
+.zh-key-badge {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11.5px;
+  display: inline-block;
+}
+
+.zh-count-pill {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+}
+
+.zh-count-pill.has-items {
+  background: rgba(56, 189, 248, 0.12);
+  color: #38BDF8;
+  border-color: rgba(56, 189, 248, 0.25);
+}
+
+.zh-tbl-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+/* Dual Presentation Mobile Cards Container (Default Hidden on Desktop) */
+.zh-cards-mobile {
+  display: none;
+}
+
+/* ── Mobile Responsive Mode for Zones Modal (Hallmark Gates 34, 49, 50, 52) ── */
+@media (max-width: 768px) {
+  .zh-modal {
+    width: 96% !important;
+    max-height: 92vh !important;
+    margin: 8px auto !important;
+    border-radius: 10px !important;
+  }
+
+  .zh-modal-close {
+    width: 44px;
+    height: 44px;
+    top: 8px;
+    right: 8px;
+    touch-action: manipulation;
+  }
+
+  .zh-modal-header {
+    padding: 14px 14px 12px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .zh-lead {
+    min-width: 0;
+    width: 100%;
+    padding-right: 36px;
+  }
+
+  .zh-title {
+    font-size: 15px;
+    overflow-wrap: anywhere;
+    min-width: 0;
+  }
+
+  .cat-tabs-segmented {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+  }
+
+  .cat-tab-pill {
+    min-height: 44px;
+    justify-content: center;
+    font-size: 11px;
+    padding: 0 8px;
+    touch-action: manipulation;
+  }
+
+  /* Telemetry Strip Mobile: Compact 3-Column Grid */
+  .zh-telemetry-strip {
+    padding: 8px 10px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    text-align: center;
+  }
+
+  .zh-telemetry-sep {
+    display: none;
+  }
+
+  .zh-telemetry-item {
+    flex-direction: column;
+    gap: 2px;
+    justify-content: center;
+    min-width: 0;
+  }
+
+  .zh-tel-label {
+    font-size: 8px;
+    line-height: 1.15;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  .zh-tel-val {
+    font-size: 13px;
+  }
+
+  /* Modal Body Mobile */
+  .zh-modal-body {
+    padding: 10px 10px max(24px, env(safe-area-inset-bottom)) !important;
+    overflow-x: hidden;
+  }
+
+  /* Toolbar Mobile */
+  .zh-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .zh-filter-group {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .zh-filter-item {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 4px;
+  }
+
+  .zh-select {
+    width: 100% !important;
+    min-height: 44px;
+    font-size: 12.5px;
+    border-radius: 6px;
+  }
+
+  .zh-search-wrap {
+    width: 100% !important;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .zh-search-field {
+    width: 100% !important;
+    min-height: 44px;
+    font-size: 12.5px;
+    border-radius: 6px;
+  }
+
+  .zh-action-btn {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+    font-size: 12px;
+    border-radius: 6px;
+    touch-action: manipulation;
+  }
+
+  /* Form Grids Mobile: Stack to Single Column */
+  .zh-form-grid-3,
+  .zh-form-grid-2 {
+    grid-template-columns: 1fr !important;
+    gap: 10px;
+  }
+
+  .zh-input-text {
+    min-height: 44px;
+    font-size: 13px;
+  }
+
+  .zh-form-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .zh-btn-cancel,
+  .zh-btn-submit {
+    flex: 1;
+    min-height: 44px;
+    justify-content: center;
+    font-size: 12px;
+    touch-action: manipulation;
+  }
+
+  /* Dual Presentation: Hide Desktop Table, Show Mobile Cards */
+  .zh-table-wrap {
+    display: none !important;
+  }
+
+  .zh-cards-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* Mobile Hierarchy Card */
+  .zh-card {
+    background: var(--panel, #0F172A);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+
+  .zh-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .zh-card-key {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    background: rgba(56, 189, 248, 0.12);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  .zh-card-order {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  .zh-card-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .zh-card-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .zh-card-actions {
+    display: flex;
+    gap: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    padding-top: 10px;
+    margin-top: 4px;
+  }
+
+  .zh-card-btn {
+    flex: 1;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 600;
+    border-radius: 6px;
+    touch-action: manipulation;
   }
 }
+
+/* ── Specific Narrow Phone Breakpoint (≤ 420px) ── */
+@media (max-width: 420px) {
+  .zh-telemetry-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 6px;
+  }
+
+  .zh-tel-label {
+    font-size: 7.5px;
+  }
+
+  .zh-tel-val {
+    font-size: 12px;
+  }
+
+  .cat-tab-pill span:first-of-type {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
 
 
 

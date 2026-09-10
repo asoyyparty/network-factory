@@ -1193,133 +1193,181 @@
   </div>
 </div>
 
-<!-- ── MODAL: Kelola Kategori & Sub-Kategori Gedung ── -->
+<!-- ── MODAL: Kelola Kategori & Sub-Kategori Gedung (Hallmark Redesign) ── -->
 <div class="modal-overlay" id="zones-modal">
-  <div class="modal" style="max-width:880px; width:95%; border:1px solid rgba(56, 189, 248, 0.25); background:#0F172A; box-shadow:0 25px 50px -12px rgba(0,0,0,0.7)">
-    <button class="modal-close" onclick="closeZonesModal()" title="Tutup">✕</button>
+  <div class="modal zh-modal">
+    <button class="modal-close zh-modal-close" onclick="closeZonesModal()" title="Tutup Modal" aria-label="Tutup Modal">&times;</button>
     
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--border); padding-bottom:14px; flex-wrap:wrap; gap:12px">
-      <div>
-        <h3 style="margin:0; font-size:18px; font-weight:700; color:#fff; display:flex; align-items:center; gap:8px">
-          🏷️ Kelola Kategori & Sub-Kategori Gedung
+    <!-- Modal Header Benchmark -->
+    <div class="zh-modal-header">
+      <div class="zh-lead">
+        <div class="zh-callsign">TAXONOMY // ZONE &amp; ROOM HIERARCHY BENCHMARK</div>
+        <h3 class="zh-title">
+          <svg class="zh-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"></rect>
+            <rect x="14" y="3" width="7" height="7"></rect>
+            <rect x="14" y="14" width="7" height="7"></rect>
+            <rect x="3" y="14" width="7" height="7"></rect>
+          </svg>
+          Kelola Kategori &amp; Sub-Kategori Gedung
         </h3>
-        <p style="margin:4px 0 0; font-size:12px; color:var(--text-muted)">Kelola hirarki area gedung utama dan lokasi/ruangan pabrik</p>
+        <p class="zh-desc">Konfigurasi hirarki kelompok gedung utama dan pemetaan ruangan fisik perangkat pabrik.</p>
       </div>
+      
+      <!-- Segmented Tab Pills -->
       <div class="cat-tabs-segmented">
-        <button class="cat-tab-pill active" id="btn-tab-main-cat" onclick="switchCategoryTab('main')">📂 Kategori Utama</button>
-        <button class="cat-tab-pill" id="btn-tab-sub-cat" onclick="switchCategoryTab('sub')">📌 Sub-Kategori / Ruangan</button>
+        <button class="cat-tab-pill active" id="btn-tab-main-cat" onclick="switchCategoryTab('main')">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg>
+          <span>Kategori Utama</span>
+          <span class="cat-tab-badge" id="badge-count-zones">0</span>
+        </button>
+        <button class="cat-tab-pill" id="btn-tab-sub-cat" onclick="switchCategoryTab('sub')">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          <span>Sub-Kategori / Ruangan</span>
+          <span class="cat-tab-badge" id="badge-count-subcat">0</span>
+        </button>
       </div>
     </div>
 
-    <!-- ══ TAB 1: KATEGORI UTAMA ══ -->
-    <div id="cat-tab-main">
-      <div class="table-search-bar">
-        <span style="font-size:12.5px; color:var(--text-muted)">Daftar kelompok gedung utama (zone / area).</span>
-        <button class="btn-primary" style="padding:7px 14px; font-size:12px; display:flex; align-items:center; gap:6px" onclick="openAddZoneForm()">
-          <span>＋</span> Tambah Kategori Utama
-        </button>
+    <!-- Mini Telemetry Strip Agregat -->
+    <div class="zh-telemetry-strip">
+      <div class="zh-telemetry-item">
+        <span class="zh-tel-label">KATEGORI GEDUNG</span>
+        <span class="zh-tel-val" id="zh-stat-zones">0</span>
       </div>
+      <div class="zh-telemetry-sep">/</div>
+      <div class="zh-telemetry-item">
+        <span class="zh-tel-label">SUB-KATEGORI RUANGAN</span>
+        <span class="zh-tel-val" id="zh-stat-locations">0</span>
+      </div>
+      <div class="zh-telemetry-sep">/</div>
+      <div class="zh-telemetry-item">
+        <span class="zh-tel-label">TOTAL PERANGKAT TERPETAKAN</span>
+        <span class="zh-tel-val" id="zh-stat-devices">0</span>
+      </div>
+    </div>
 
-      <!-- Form Kategori Utama -->
-      <div id="zone-form-box" class="form-card-box" style="display:none">
-        <h4 id="zone-form-title" class="form-card-title">＋ Tambah Kategori Utama</h4>
-        <input type="hidden" id="zf-id">
-        <div class="form-grid" style="grid-template-columns: 1fr 2fr 100px; gap:12px">
-          <div class="field">
-            <label style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:4px">Kode Unique (Key)</label>
-            <input type="text" id="zf-key" placeholder="cth: GEDUNG_K" style="text-transform:uppercase; background:var(--bg); border:1px solid var(--border); color:#fff; padding:8px 12px; border-radius:6px" required>
+    <!-- Modal Body Content -->
+    <div class="zh-modal-body">
+      <!-- ══ TAB 1: KATEGORI UTAMA ══ -->
+      <div id="cat-tab-main">
+        <div class="zh-toolbar">
+          <div class="zh-search-wrap">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            <input type="search" id="zone-search-input" oninput="renderZonesTable()" placeholder="Cari kode atau nama gedung..." class="zh-search-field">
           </div>
-          <div class="field">
-            <label style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:4px">Nama / Label Kategori</label>
-            <input type="text" id="zf-label" placeholder="cth: Gedung K (Lab Baru)" style="background:var(--bg); border:1px solid var(--border); color:#fff; padding:8px 12px; border-radius:6px" required>
+          <button class="btn-primary zh-action-btn admin-only" onclick="openAddZoneForm()">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>Tambah Kategori Utama</span>
+          </button>
+        </div>
+
+        <!-- Form Kategori Utama -->
+        <div id="zone-form-box" class="form-card-box zh-form-card" style="display:none">
+          <h4 id="zone-form-title" class="form-card-title">Tambah Kategori Utama</h4>
+          <input type="hidden" id="zf-id">
+          <div class="form-grid zh-form-grid-3">
+            <div class="field">
+              <label class="zh-field-label">Kode Unik (Key)</label>
+              <input type="text" id="zf-key" placeholder="cth: GEDUNG_K" class="zh-input-text is-mono uppercase" required>
+            </div>
+            <div class="field">
+              <label class="zh-field-label">Nama / Label Kategori</label>
+              <input type="text" id="zf-label" placeholder="cth: Gedung K (Lab Baru)" class="zh-input-text" required>
+            </div>
+            <div class="field">
+              <label class="zh-field-label">Urutan Tampil</label>
+              <input type="number" id="zf-order" value="0" placeholder="0" class="zh-input-text is-mono">
+            </div>
           </div>
-          <div class="field">
-            <label style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:4px">Urutan</label>
-            <input type="number" id="zf-order" value="0" placeholder="0" style="background:var(--bg); border:1px solid var(--border); color:#fff; padding:8px 12px; border-radius:6px">
+          <p id="zf-err" class="zh-form-err"></p>
+          <div class="zh-form-actions">
+            <button type="button" class="btn-secondary zh-btn-cancel" onclick="closeZoneForm()">Batal</button>
+            <button type="button" class="btn-primary zh-btn-submit" onclick="submitZoneForm()">Simpan Kategori</button>
           </div>
         </div>
-        <p id="zf-err" style="color:var(--alert); font-size:12px; margin:8px 0 0; font-family:var(--mono)"></p>
-        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px; border-top:1px solid rgba(255,255,255,0.06); padding-top:10px">
-          <button type="button" class="btn-secondary" style="padding:6px 14px; font-size:12px" onclick="closeZoneForm()">Batal</button>
-          <button type="button" class="btn-primary" style="padding:6px 16px; font-size:12px" onclick="submitZoneForm()">Simpan Kategori</button>
-        </div>
-      </div>
 
-      <!-- Tabel Kategori Utama -->
-      <div class="modal-table-container">
-        <div class="device-table-wrap" style="max-height:360px; overflow-y:auto; margin:0">
+        <!-- Dual Presentation: Desktop Table -->
+        <div class="device-table-wrap zh-table-wrap">
           <table class="device-table">
             <thead>
               <tr>
                 <th style="width:140px">Kode (Key)</th>
                 <th>Nama / Label Kategori</th>
                 <th style="width:80px; text-align:center">Urutan</th>
-                <th style="width:150px">Jumlah Sub-Kategori</th>
-                <th style="width:140px; text-align:right">Aksi</th>
+                <th style="width:150px">Sub-Kategori</th>
+                <th style="width:130px">Perangkat</th>
+                <th style="width:150px; text-align:right">Aksi</th>
               </tr>
             </thead>
             <tbody id="zones-table-body"></tbody>
           </table>
         </div>
-      </div>
-    </div>
 
-    <!-- ══ TAB 2: SUB-KATEGORI / LOKASI ══ -->
-    <div id="cat-tab-sub" style="display:none">
-      <div class="table-search-bar">
-        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; flex:1">
-          <div style="display:flex; align-items:center; gap:6px">
-            <span style="font-size:12px; color:var(--text-muted); font-weight:600">Filter:</span>
-            <select id="subcat-filter-zone" onchange="renderSubCategoriesTable()" style="padding:7px 12px; font-size:12.5px; background:var(--panel-2); color:#fff; border:1px solid var(--border); border-radius:6px; min-width:200px">
-              <option value="ALL">-- Semua Kategori Utama --</option>
-            </select>
-          </div>
-          <div style="position:relative; flex:1; max-width:260px">
-            <input type="search" id="subcat-search-input" onkeyup="renderSubCategoriesTable()" placeholder="🔍 Cari sub-kategori..." style="width:100%; padding:7px 12px; font-size:12.5px; background:var(--panel-2); border:1px solid var(--border); color:#fff; border-radius:6px">
-          </div>
-        </div>
-        <button class="btn-primary" style="padding:7px 14px; font-size:12px; display:flex; align-items:center; gap:6px" onclick="openAddSubCatForm()">
-          <span>＋</span> Tambah Sub-Kategori Baru
-        </button>
+        <!-- Dual Presentation: Mobile Cards Stack -->
+        <div class="zh-cards-mobile" id="zones-cards-body"></div>
       </div>
 
-      <!-- Form Sub-Kategori -->
-      <div id="subcat-form-box" class="form-card-box" style="display:none">
-        <h4 id="subcat-form-title" class="form-card-title">＋ Tambah Sub-Kategori / Ruangan Baru</h4>
-        <input type="hidden" id="scf-id">
-        <div class="form-grid" style="grid-template-columns: 1fr 1fr; gap:12px">
-          <div class="field">
-            <label style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:4px">Nama Sub-Kategori / Ruangan</label>
-            <input type="text" id="scf-name" placeholder="cth: LAB SPRAYER LT. 2" style="background:var(--bg); border:1px solid var(--border); color:#fff; padding:8px 12px; border-radius:6px" required>
+      <!-- ══ TAB 2: SUB-KATEGORI / LOKASI ══ -->
+      <div id="cat-tab-sub" style="display:none">
+        <div class="zh-toolbar zh-toolbar-sub">
+          <div class="zh-filter-group">
+            <div class="zh-filter-item">
+              <label class="zh-filter-lbl" for="subcat-filter-zone">KATEGORI:</label>
+              <select id="subcat-filter-zone" onchange="renderSubCategoriesTable()" class="zh-select">
+                <option value="ALL">Semua Kategori Utama</option>
+              </select>
+            </div>
+            <div class="zh-search-wrap">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+              <input type="search" id="subcat-search-input" oninput="renderSubCategoriesTable()" placeholder="Cari nama ruangan..." class="zh-search-field">
+            </div>
           </div>
-          <div class="field">
-            <label style="font-size:12px; font-weight:600; color:var(--text-muted); margin-bottom:4px">Kategori Utama (Induk Gedung/Area)</label>
-            <select id="scf-zone" style="background:var(--bg); border:1px solid var(--border); color:#fff; padding:8px 12px; border-radius:6px" required></select>
-          </div>
+          <button class="btn-primary zh-action-btn admin-only" onclick="openAddSubCatForm()">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <span>Tambah Sub-Kategori</span>
+          </button>
         </div>
-        <p id="scf-err" style="color:var(--alert); font-size:12px; margin:8px 0 0; font-family:var(--mono)"></p>
-        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px; border-top:1px solid rgba(255,255,255,0.06); padding-top:10px">
-          <button type="button" class="btn-secondary" style="padding:6px 14px; font-size:12px" onclick="closeSubCatForm()">Batal</button>
-          <button type="button" class="btn-primary" style="padding:6px 16px; font-size:12px" onclick="submitSubCatForm()">Simpan Sub-Kategori</button>
-        </div>
-      </div>
 
-      <!-- Tabel Sub-Kategori -->
-      <div class="modal-table-container">
-        <div class="device-table-wrap" style="max-height:360px; overflow-y:auto; margin:0">
+        <!-- Form Sub-Kategori -->
+        <div id="subcat-form-box" class="form-card-box zh-form-card" style="display:none">
+          <h4 id="subcat-form-title" class="form-card-title">Tambah Sub-Kategori / Ruangan Baru</h4>
+          <input type="hidden" id="scf-id">
+          <div class="form-grid zh-form-grid-2">
+            <div class="field">
+              <label class="zh-field-label">Nama Sub-Kategori / Ruangan</label>
+              <input type="text" id="scf-name" placeholder="cth: LAB SPRAYER LT. 2" class="zh-input-text" required>
+            </div>
+            <div class="field">
+              <label class="zh-field-label">Kategori Utama (Induk Gedung/Area)</label>
+              <select id="scf-zone" class="zh-select" required></select>
+            </div>
+          </div>
+          <p id="scf-err" class="zh-form-err"></p>
+          <div class="zh-form-actions">
+            <button type="button" class="btn-secondary zh-btn-cancel" onclick="closeSubCatForm()">Batal</button>
+            <button type="button" class="btn-primary zh-btn-submit" onclick="submitSubCatForm()">Simpan Sub-Kategori</button>
+          </div>
+        </div>
+
+        <!-- Dual Presentation: Desktop Table -->
+        <div class="device-table-wrap zh-table-wrap">
           <table class="device-table">
             <thead>
               <tr>
                 <th style="width:50px; text-align:center">#</th>
                 <th>Nama Sub-Kategori / Ruangan</th>
                 <th>Induk Kategori Utama</th>
-                <th style="width:140px">Jumlah Perangkat</th>
-                <th style="width:140px; text-align:right">Aksi</th>
+                <th style="width:140px">Perangkat Terhubung</th>
+                <th style="width:150px; text-align:right">Aksi</th>
               </tr>
             </thead>
             <tbody id="subcat-table-body"></tbody>
           </table>
         </div>
+
+        <!-- Dual Presentation: Mobile Cards Stack -->
+        <div class="zh-cards-mobile" id="subcat-cards-body"></div>
       </div>
     </div>
 
