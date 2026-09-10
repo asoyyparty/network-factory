@@ -702,46 +702,130 @@
 
   @media (max-width:768px){
     header{
-      padding: max(8px, env(safe-area-inset-top)) 12px 8px;
-      gap: 8px;
+      padding: max(6px, env(safe-area-inset-top)) 10px 6px;
+      gap: 6px;
+      min-height: 50px;
     }
-    .brand h1 {font-size: 13.5px;}
-    .brand p {display: none;}
+    .brand {
+      gap: 7px;
+      min-width: 0;
+      flex: 1;
+    }
     #mobile-menu-btn{
       display: flex !important;
       align-items: center;
       justify-content: center;
-      min-width: 44px;
-      min-height: 44px;
+      width: 38px;
+      height: 38px;
+      min-width: 38px;
+      min-height: 38px;
       padding: 0;
-      font-size: 20px;
       background: var(--panel-2);
       border: 1px solid var(--border);
       border-radius: 6px;
       color: var(--text);
       touch-action: manipulation;
+      flex-shrink: 0;
     }
     #mobile-menu-btn:active {
       transform: translateY(1px);
     }
-    
+    .brand-logo-frame {
+      width: 28px;
+      height: 28px;
+      padding: 2px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    .brand-text {
+      min-width: 0;
+      overflow: hidden;
+    }
+    .brand-text h1 {
+      font-size: 12px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      letter-spacing: -0.015em;
+      line-height: 1.2;
+    }
+    .brand-meta {
+      display: none !important;
+    }
+    .brand p {
+      display: none;
+    }
+
+    .header-right {
+      gap: 5px;
+      flex-shrink: 0;
+    }
+    .telemetry-bar {
+      gap: 4px;
+    }
     .station-clock {
       display: none !important;
     }
     .cluster-inv {
       display: none !important;
     }
-    .user-badge .u-name {
-      display: none;
+    
+    /* Telemetry health chips compacted for mobile */
+    .cluster-health {
+      gap: 4px;
     }
-    .brand-meta {
-      display: none;
+    .t-chip {
+      padding: 3px 6px;
+      font-size: 11px;
+      gap: 4px;
+      border-radius: 4px;
+      min-height: 32px;
     }
-    .brand-text h1 {
-      font-size: 11.5px;
+    .t-chip .t-lbl {
+      display: none !important;
+    }
+    .t-chip.alert.idle-alert {
+      display: none !important;
+    }
+    .ws-telemetry-pill {
+      padding: 3px 6px;
+      border-radius: 4px;
+      min-height: 32px;
     }
     .ws-telemetry-pill .ws-label {
-      display: none;
+      display: none !important;
+    }
+
+    /* Operator badge compacted for mobile */
+    .user-badge {
+      padding: 3px 7px;
+      min-height: 34px;
+      gap: 4px;
+      border-radius: 4px;
+    }
+    .user-badge .u-name {
+      display: none !important;
+    }
+    .user-badge .u-caret {
+      display: none !important;
+    }
+    .user-badge .u-role {
+      font-size: 9px;
+      padding: 2px 4px;
+    }
+    .user-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      min-width: 200px;
+      max-width: calc(100vw - 20px);
+      z-index: 300;
+    }
+    
+    @media (max-width: 380px) {
+      .brand-logo-frame { display: none !important; }
+      .brand-text h1 { font-size: 11px; }
+      .t-chip { padding: 3px 5px; font-size: 10px; }
     }
     
     /* Sidebar off-canvas mobile drawer */
@@ -845,8 +929,11 @@
   }
 
   @media (pointer: coarse) {
-    button, .tab-btn, .icon-btn, .btn-login {
+    button, .tab-btn, .icon-btn, .btn-login, #mobile-menu-btn {
       min-height: 44px;
+    }
+    #mobile-menu-btn {
+      min-width: 44px;
     }
   }
 </style>
