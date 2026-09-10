@@ -133,55 +133,66 @@
 
 /* User badge in header */
 .user-badge {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 14px; border: 1px solid var(--border);
-  border-radius: 6px; font-family: var(--mono); font-size: 12px;
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border: 1px solid var(--border);
+  border-radius: 5px; font-family: var(--mono); font-size: 11.5px;
   color: var(--text-muted); cursor: pointer;
-  background: rgba(31, 41, 55, 0.7); position: relative;
-  transition: all 0.2s;
+  background: var(--panel-2); position: relative;
+  transition: all 0.15s ease;
 }
-.user-badge:hover { border-color: var(--accent-dim); background: var(--panel-2); }
-.user-badge .u-name { color: #fff; font-weight: 600; }
+.user-badge:hover { border-color: var(--color-rule-focus); background: var(--color-paper-hover); }
+.user-badge:active { transform: translateY(1px); }
+.u-avatar-wrap { display: flex; align-items: center; gap: 6px; }
+.user-badge .u-name { color: var(--text); font-weight: 600; }
 .user-badge .u-role {
-  font-size: 10px; background: rgba(2, 132, 199, 0.2); color: var(--accent);
-  padding: 2px 6px; border-radius: 4px; font-weight: 600; border: 1px solid rgba(56, 189, 248, 0.2);
+  font-size: 9.5px; font-weight: 700; background: rgba(56, 139, 253, 0.15); color: var(--accent);
+  padding: 1px 5px; border-radius: 3px; border: 1px solid rgba(56, 139, 253, 0.3); letter-spacing: 0.04em;
 }
+.user-badge .u-caret { color: var(--color-ink-3); transition: transform 0.15s ease; }
+.user-badge.open .u-caret { transform: rotate(180deg); }
+
 .user-menu {
-  position: absolute; top: calc(100% + 8px); right: 0;
+  position: absolute; top: calc(100% + 6px); right: 0;
   background: var(--panel); border: 1px solid var(--border);
-  border-radius: 8px; min-width: 200px; z-index: 200; /* Ensure high z-index */
-  box-shadow: 0 10px 25px rgba(0,0,0,.6);
+  border-radius: 6px; min-width: 210px; z-index: 250;
+  box-shadow: 0 16px 32px -8px rgba(0,0,0,0.7), 0 0 0 1px var(--color-rule);
   opacity: 0; visibility: hidden;
-  transform: translateY(-10px) scale(0.95);
-  transform-origin: top right;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transform: translateY(-6px);
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+  padding: 4px;
 }
-/* By default, user-menu aligns right. But if it overflows the window, we might need a fixed position on mobile, but right:0 should be safe for header right edge */
 
 .user-badge.open .user-menu {
   opacity: 1; visibility: visible;
-  transform: translateY(0) scale(1);
+  transform: translateY(0);
 }
+.user-menu-header { padding: 8px 10px 6px; }
+.um-user { font-family: var(--sans); font-size: 12.5px; font-weight: 600; color: var(--text); }
+.um-sub { font-family: var(--mono); font-size: 9.5px; color: var(--color-ink-3); font-weight: 600; margin-top: 1px; }
 .user-menu-item {
   display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
-  padding: 12px 16px; background: none; border: none;
-  color: var(--text-muted); font-family: var(--sans); font-size: 13px; font-weight: 500;
-  cursor: pointer; transition: all 0.2s;
+  padding: 7px 10px; background: none; border: none; border-radius: 4px;
+  color: var(--text-muted); font-family: var(--sans); font-size: 12.5px; font-weight: 500;
+  cursor: pointer; transition: all 0.12s ease;
 }
-.user-menu-item:hover { background: rgba(255,255,255,0.05); color: #fff; }
-.user-menu-item.danger:hover { color: var(--alert); background: rgba(248, 113, 113, 0.1); }
-.user-menu hr { border: none; border-top: 1px solid var(--border); margin: 6px 0; }
+.user-menu-item:hover { background: var(--color-paper-hover); color: var(--text); }
+.user-menu-item:active { transform: translateY(1px); }
+.user-menu-item.danger { color: var(--alert); }
+.user-menu-item.danger:hover { background: rgba(248, 81, 73, 0.12); color: var(--alert); }
+.user-menu hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
 
 /* WS indicator */
-.ws-indicator {
+.ws-indicator, .ws-telemetry-pill {
   display: flex; align-items: center; gap: 6px;
-  font-family: var(--mono); font-size: 11px; color: var(--text-muted);
+  padding: 4px 8px; border: 1px solid var(--border);
+  border-radius: 5px; background: var(--panel-2);
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.04em; color: var(--text-muted);
 }
-.ws-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--idle); }
-.ws-dot.connected { background: var(--ok); box-shadow: 0 0 10px rgba(52, 211, 153, 0.6); animation: blink-ok 2s ease-in-out infinite; }
-.ws-dot.reconnecting { background: var(--warn); box-shadow: 0 0 10px rgba(251, 191, 36, 0.6); animation: blink-warn .8s ease-in-out infinite; }
-@keyframes blink-ok   { 0%,100%{opacity:1} 50%{opacity:.5} }
-@keyframes blink-warn { 0%,100%{opacity:1} 50%{opacity:.3} }
+.ws-dot { width: 6.5px; height: 6.5px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.ws-dot.connected { background: var(--ok); box-shadow: 0 0 0 1.5px rgba(63, 185, 80, 0.3); }
+.ws-dot.reconnecting { background: var(--warn); box-shadow: 0 0 0 1.5px rgba(210, 153, 34, 0.3); }
+.ws-dot.disconnected { background: var(--alert); box-shadow: 0 0 0 1.5px rgba(248, 81, 73, 0.3); }
 
 /* Ping latency inline chip */
 .latency-chip {

@@ -293,7 +293,7 @@ function setWsStatus(status) {
   const lbl  = $('#ws-label');
   if (!dot) return;
   dot.className  = 'ws-dot ' + status;
-  lbl.textContent = status === 'connected' ? 'Live' : status === 'reconnecting' ? 'Menghubungkan...' : 'Terputus';
+  lbl.textContent = status === 'connected' ? 'LIVE' : status === 'reconnecting' ? 'SYNC' : 'DISC';
 }
 
 function connectWebSocket() {
@@ -403,19 +403,32 @@ function renderUserInfo() {
   const el = $('#user-badge');
   if (!el) return;
   el.innerHTML = `
-    <span class="u-role">${u.role.toUpperCase()}</span>
-    <span class="u-name">${escapeHtml(u.username)}</span>
-    <span>▾</span>
-    <div class="user-menu">
-      <button class="user-menu-item" onclick="openChangePwdModal(); closeUserMenu()">🔑 Ganti Password</button>
+    <div class="u-avatar-wrap">
+      <span class="u-role">${u.role.toUpperCase()}</span>
+      <span class="u-name">${escapeHtml(u.username)}</span>
+      <svg class="u-caret" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+    </div>
+    <div class="user-menu" role="menu">
+      <div class="user-menu-header">
+        <div class="um-user">${escapeHtml(u.username)}</div>
+        <div class="um-sub">ROLE // ${u.role.toUpperCase()}</div>
+      </div>
       <hr>
-      <button class="user-menu-item danger" onclick="logout()">↪ Logout</button>
+      <button class="user-menu-item" onclick="openChangePwdModal(); closeUserMenu()" role="menuitem">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-1.5 1.5L14 9m0 0l-1.5 1.5M14 9l2.5 2.5m-4 1.5l-3 3H5v-3l7-7 2.5 2.5z"/></svg>
+        <span>Ganti Password</span>
+      </button>
+      <hr>
+      <button class="user-menu-item danger" onclick="logout()" role="menuitem">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+        <span>Keluar Sistem</span>
+      </button>
     </div>
   `;
-  el.addEventListener('click', e => {
+  el.onclick = (e) => {
     e.stopPropagation();
     el.classList.toggle('open');
-  });
+  };
 
   const auditTab = $('#tab-audit-btn');
   if (auditTab) {
@@ -435,7 +448,7 @@ function logout() {
   window.location.replace('/login.html');
 }
 
-/* ── 9. STATS BAR ──────────────────────────────────────────────────── */
+/* ── 9. STATS & TELEMETRY (Hallmark Segmented Array) ───────────────── */
 function renderStats() {
   const totalLoc = state.locations.length;
   let totalDev=0, online=0, offline=0, maint=0, unknown=0;
@@ -450,15 +463,72 @@ function renderStats() {
   });
   const bar = $('#stats-bar');
   if (!bar) return;
+
+  const currentWsStatus = (wsConn && wsConn.readyState === 1) ? 'connected' : (wsConn && wsConn.readyState === 0 ? 'reconnecting' : 'disconnected');
+  const wsLabelText = currentWsStatus === 'connected' ? 'LIVE' : (currentWsStatus === 'reconnecting' ? 'SYNC' : 'DISC');
+
   bar.innerHTML = `
-    <div class="stat-chip">Lokasi <b>${totalLoc}</b></div>
-    <div class="stat-chip">Perangkat <b>${totalDev}</b></div>
-    <div class="stat-chip"><span class="dot" style="background:var(--ok)"></span>Online <b>${online}</b></div>
-    <div class="stat-chip" style="cursor:pointer" onclick="switchTab('offline')" title="Klik untuk melihat daftar perangkat offline"><span class="dot" style="background:var(--alert)"></span>Offline <b>${offline}</b></div>
-    <div class="stat-chip"><span class="dot" style="background:var(--warn)"></span>Maint. <b>${maint}</b></div>
-    <div class="ws-indicator"><span class="ws-dot" id="ws-dot"></span><span id="ws-label">Menghubungkan...</span></div>
+    <!-- Inventory Segment -->
+    <div class="telemetry-cluster cluster-inv">
+      <div class="t-metric" title="Total Area / Ruangan Terdaftar">
+        <span class="t-lbl">LOC</span>
+        <b class="t-val">${totalLoc}</b>
+      </div>
+      <span class="t-divider">|</span>
+      <div class="t-metric" title="Total Perangkat Terpasang">
+        <span class="t-lbl">DEVS</span>
+        <b class="t-val">${totalDev}</b>
+      </div>
+    </div>
+
+    <!-- Health Telemetry Matrix -->
+    <div class="telemetry-cluster cluster-health">
+      <div class="t-chip ok" title="Perangkat Normal (Online)">
+        <span class="t-dot s-ok"></span>
+        <span class="t-lbl">OK</span>
+        <b class="t-num">${online}</b>
+      </div>
+      ${offline > 0 ? `
+      <div class="t-chip alert" onclick="switchTab('offline')" title="Klik untuk melihat ${offline} perangkat offline" role="button" tabindex="0">
+        <span class="t-dot s-alert"></span>
+        <span class="t-lbl">ALERT</span>
+        <b class="t-num">${offline}</b>
+      </div>` : `
+      <div class="t-chip alert idle-alert" onclick="switchTab('offline')" title="Tidak ada perangkat offline">
+        <span class="t-dot s-alert idle"></span>
+        <span class="t-lbl">ALERT</span>
+        <b class="t-num">0</b>
+      </div>`}
+      ${maint > 0 ? `
+      <div class="t-chip warn" title="${maint} perangkat dalam masa maintenance">
+        <span class="t-dot s-warn"></span>
+        <span class="t-lbl">MAINT</span>
+        <b class="t-num">${maint}</b>
+      </div>` : ''}
+    </div>
+
+    <!-- WebSocket Heartbeat Link -->
+    <div class="ws-telemetry-pill" title="Status Koneksi Realtime WebSocket" id="ws-pill">
+      <span class="ws-dot ${currentWsStatus}" id="ws-dot"></span>
+      <span class="ws-label" id="ws-label">${wsLabelText}</span>
+    </div>
   `;
   updateSidebarFooterTelemetry();
+}
+
+/* ── Realtime Station Clock ── */
+function startStationClock() {
+  const clockEl = $('#station-clock-time');
+  if (!clockEl) return;
+  function tick() {
+    const now = new Date();
+    const h = String(now.getHours()).padStart(2, '0');
+    const m = String(now.getMinutes()).padStart(2, '0');
+    const s = String(now.getSeconds()).padStart(2, '0');
+    clockEl.textContent = `${h}:${m}:${s}`;
+  }
+  tick();
+  setInterval(tick, 1000);
 }
 
 /* ── 10. SIDEBAR (Hallmark Telemetry Index-Rail) ───────────────────── */
@@ -2382,9 +2452,12 @@ async function init(){
   const si = $('#search-input');
   if (si) { si.value = ''; }
 
+  // Mulai jam digital stasiun
+  startStationClock();
+
   // Tampilkan loading state
   const bar = $('#stats-bar');
-  if(bar) bar.innerHTML='<div class="stat-chip" style="opacity:.5">Memuat data...</div>';
+  if(bar) bar.innerHTML='<div class="telemetry-cluster cluster-inv" style="opacity:.6"><span class="t-lbl">SYS</span> <b class="t-val">SYNC...</b></div>';
 
   try {
     // Ambil info user

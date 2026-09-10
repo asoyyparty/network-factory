@@ -73,34 +73,147 @@
 
   #app{display:flex;flex-direction:column;height:100dvh;min-height:100dvh;overflow-x:clip;}
 
-  /* HEADER (Telemetry Status Bar) */
+  /* ── HEADER (Hallmark Mission-Control Telemetry Bar) ── */
   header{
     display:flex;align-items:center;justify-content:space-between;
-    padding:10px 20px;border-bottom:1px solid var(--border);
+    padding:8px 16px;border-bottom:1px solid var(--border);
     background:var(--panel);
     flex-shrink:0;flex-wrap:nowrap;gap:16px;z-index:100;
+    min-height:56px;
   }
-  .brand{display:flex;align-items:center;gap:12px;}
+  .brand{display:flex;align-items:center;gap:10px;flex-shrink:0;}
   #mobile-menu-btn{
-    display:none;background:none;border:none;color:var(--text);
-    font-size:22px;padding:4px;line-height:1;cursor:pointer;border-radius:4px;
+    display:none;align-items:center;justify-content:center;
+    background:var(--panel-2);border:1px solid var(--border);
+    color:var(--text);border-radius:5px;width:34px;height:34px;
+    padding:0;cursor:pointer;transition:all 0.15s ease;
   }
-  .brand-logo-img{
-    width:32px;height:32px;
-    object-fit:contain;
-    flex-shrink:0;
-  }
-  .brand-text h1{font-family:var(--sans);font-size:14px;font-weight:700;margin:0;letter-spacing:-0.01em;color:var(--text);}
-  .brand-text p{margin:2px 0 0;font-size:11px;font-family:var(--mono);color:var(--text-muted);font-weight:400;}
+  #mobile-menu-btn:hover{background:var(--color-paper-hover);border-color:var(--color-rule-focus);}
+  #mobile-menu-btn:active{transform:translateY(1px);}
   
-  .header-right{display:flex;align-items:center;gap:12px;}
-  .stats{display:flex;gap:8px;flex-wrap:wrap;}
-  .stat-chip{
-    font-family:var(--mono);font-size:11.5px;padding:5px 10px;border:1px solid var(--border);
-    border-radius:6px;background:var(--panel-2);color:var(--text-muted);display:flex;gap:7px;align-items:center;
+  .brand-logo-frame{
+    width:32px;height:32px;border:1px solid var(--border);border-radius:6px;
+    background:var(--panel-2);display:flex;align-items:center;justify-content:center;
+    padding:3px;flex-shrink:0;
   }
-  .stat-chip b{color:var(--text);font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;}
-  .stat-chip .dot{width:6px;height:6px;border-radius:50%;display:inline-block;}
+  .brand-logo-img{width:100%;height:100%;object-fit:contain;}
+  .brand-text{display:flex;flex-direction:column;gap:1px;}
+  .brand-meta{display:flex;align-items:center;gap:6px;font-family:var(--mono);line-height:1;}
+  .brand-callsign{font-size:9.5px;font-weight:700;color:var(--accent);letter-spacing:0.06em;}
+  .brand-station-tag{
+    font-size:9px;font-weight:600;color:var(--text-muted);background:var(--panel-2);
+    padding:1px 4px;border-radius:3px;border:1px solid var(--border);letter-spacing:0.04em;
+  }
+  .brand-text h1{
+    font-family:var(--sans);font-size:13px;font-weight:700;margin:0;
+    letter-spacing:-0.015em;color:var(--text);line-height:1.2;
+  }
+
+  .header-right{display:flex;align-items:center;gap:10px;min-width:0;}
+  .telemetry-bar{display:flex;align-items:center;gap:8px;}
+
+  /* Inventory cluster */
+  .telemetry-cluster{
+    display:flex;align-items:center;padding:3px 8px;border:1px solid var(--border);
+    border-radius:5px;background:var(--panel-2);font-family:var(--mono);
+  }
+  .cluster-inv{gap:8px;font-size:11px;color:var(--text-muted);}
+  .t-metric{display:flex;align-items:center;gap:5px;}
+  .t-lbl{font-size:9.5px;font-weight:600;color:var(--color-ink-3);letter-spacing:0.04em;}
+  .t-metric .t-val{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums;}
+  .t-divider{color:var(--color-rule);font-size:10px;}
+
+  /* Health cluster */
+  .cluster-health{gap:6px;background:transparent;border:none;padding:0;}
+  .t-chip{
+    display:flex;align-items:center;gap:5px;padding:4px 8px;border:1px solid var(--border);
+    border-radius:5px;background:var(--panel-2);font-family:var(--mono);font-size:11px;
+    font-weight:600;color:var(--text-muted);transition:all 0.15s ease;
+  }
+  .t-chip .t-num{font-variant-numeric:tabular-nums;color:var(--text);}
+  .t-chip.ok .t-num{color:var(--ok);}
+  .t-chip.alert{
+    border-color:rgba(248,81,73,0.4);background:rgba(248,81,73,0.1);color:var(--alert);
+    cursor:pointer;
+  }
+  .t-chip.alert .t-num{color:var(--alert);font-weight:700;}
+  .t-chip.alert:hover{background:rgba(248,81,73,0.2);border-color:var(--alert);}
+  .t-chip.alert:active{transform:translateY(1px);}
+  .t-chip.alert.idle-alert{opacity:0.6;cursor:default;border-color:var(--border);background:var(--panel-2);color:var(--text-muted);}
+  .t-chip.alert.idle-alert .t-num{color:var(--text-muted);}
+  .t-chip.warn{border-color:rgba(210,153,34,0.3);background:rgba(210,153,34,0.08);color:var(--warn);}
+  .t-chip.warn .t-num{color:var(--warn);}
+
+  /* Phosphor Telemetry Dot */
+  .t-dot{width:6.5px;height:6.5px;border-radius:50%;display:inline-block;flex-shrink:0;}
+  .t-dot.s-ok{background:var(--ok);box-shadow:0 0 0 1.5px rgba(63,185,80,0.25);}
+  .t-dot.s-alert{background:var(--alert);box-shadow:0 0 0 1.5px rgba(248,81,73,0.3);}
+  .t-dot.s-alert.idle{background:var(--idle);box-shadow:none;}
+  .t-dot.s-warn{background:var(--warn);box-shadow:0 0 0 1.5px rgba(210,153,34,0.25);}
+
+  /* WebSocket telemetry pill */
+  .ws-telemetry-pill{
+    display:flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--border);
+    border-radius:5px;background:var(--panel-2);font-family:var(--mono);font-size:10px;
+    font-weight:700;letter-spacing:0.04em;color:var(--text-muted);
+  }
+  .ws-dot{width:6.5px;height:6.5px;border-radius:50%;display:inline-block;flex-shrink:0;}
+  .ws-dot.connected{background:var(--ok);box-shadow:0 0 0 1.5px rgba(63,185,80,0.3);}
+  .ws-dot.reconnecting{background:var(--warn);box-shadow:0 0 0 1.5px rgba(210,153,34,0.3);}
+  .ws-dot.disconnected{background:var(--alert);box-shadow:0 0 0 1.5px rgba(248,81,73,0.3);}
+
+  /* Realtime station clock */
+  .station-clock{
+    display:flex;align-items:center;gap:5px;padding:4px 9px;border:1px solid var(--border);
+    border-radius:5px;background:var(--color-paper);font-family:var(--mono);font-size:11px;
+    color:var(--text-muted);
+  }
+  .station-clock .clock-icon{font-size:10px;opacity:0.7;}
+  .station-clock .clock-val{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums;letter-spacing:0.02em;}
+  .station-clock .clock-tz{font-size:9px;color:var(--color-ink-3);font-weight:600;}
+
+  /* Operator badge */
+  .user-badge{
+    display:flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--border);
+    border-radius:5px;background:var(--panel-2);cursor:pointer;position:relative;
+    font-family:var(--mono);font-size:11.5px;transition:all 0.15s ease;
+  }
+  .user-badge:hover{border-color:var(--color-rule-focus);background:var(--color-paper-hover);}
+  .user-badge:active{transform:translateY(1px);}
+  .u-avatar-wrap{display:flex;align-items:center;gap:6px;}
+  .user-badge .u-name{color:var(--text);font-weight:600;}
+  .user-badge .u-role{
+    font-size:9.5px;font-weight:700;background:rgba(56,139,253,0.15);color:var(--accent);
+    padding:1px 5px;border-radius:3px;border:1px solid rgba(56,139,253,0.3);letter-spacing:0.04em;
+  }
+  .user-badge .u-caret{color:var(--color-ink-3);transition:transform 0.15s ease;}
+  .user-badge.open .u-caret{transform:rotate(180deg);}
+
+  /* Operator dropdown menu */
+  .user-menu{
+    position:absolute;top:calc(100% + 6px);right:0;
+    background:var(--panel);border:1px solid var(--border);
+    border-radius:6px;min-width:210px;z-index:250;
+    box-shadow:0 16px 32px -8px rgba(0,0,0,0.7), 0 0 0 1px var(--color-rule);
+    opacity:0;visibility:hidden;transform:translateY(-6px);
+    transition:opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+    padding:4px;
+  }
+  .user-badge.open .user-menu{opacity:1;visibility:visible;transform:translateY(0);}
+  .user-menu-header{padding:8px 10px 6px;}
+  .um-user{font-family:var(--sans);font-size:12.5px;font-weight:600;color:var(--text);}
+  .um-sub{font-family:var(--mono);font-size:9.5px;color:var(--color-ink-3);font-weight:600;margin-top:1px;}
+  .user-menu-item{
+    display:flex;align-items:center;gap:8px;width:100%;text-align:left;
+    padding:7px 10px;background:none;border:none;border-radius:4px;
+    color:var(--text-muted);font-family:var(--sans);font-size:12.5px;font-weight:500;
+    cursor:pointer;transition:all 0.12s ease;
+  }
+  .user-menu-item:hover{background:var(--color-paper-hover);color:var(--text);}
+  .user-menu-item:active{transform:translateY(1px);}
+  .user-menu-item.danger{color:var(--alert);}
+  .user-menu-item.danger:hover{background:rgba(248,81,73,0.12);color:var(--alert);}
+  .user-menu hr{border:none;border-top:1px solid var(--border);margin:4px 0;}
 
   /* LAYOUT */
   .layout{display:flex;flex:1;min-height:0;position:relative;}
@@ -612,8 +725,23 @@
       transform: translateY(1px);
     }
     
-    .stats .stat-chip:not(:first-child) {
-      display: none; /* Keep single high-contrast telemetry badge on small phones */
+    .station-clock {
+      display: none !important;
+    }
+    .cluster-inv {
+      display: none !important;
+    }
+    .user-badge .u-name {
+      display: none;
+    }
+    .brand-meta {
+      display: none;
+    }
+    .brand-text h1 {
+      font-size: 11.5px;
+    }
+    .ws-telemetry-pill .ws-label {
+      display: none;
     }
     
     /* Sidebar off-canvas mobile drawer */
@@ -726,18 +854,32 @@
 </head>
 <body>
 <div id="app">
-  <!-- ── HEADER ── -->
+  <!-- ── HEADER (Hallmark Mission-Control Telemetry Bar) ── -->
   <header>
     <div class="brand">
-      <button id="mobile-menu-btn" title="Menu">☰</button>
-      <img src="/assets/cba-logo.png" alt="CBA Logo" class="brand-logo-img">
+      <button id="mobile-menu-btn" title="Buka Menu Navigasi" aria-label="Menu">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+      </button>
+      <div class="brand-logo-frame">
+        <img src="/assets/cba-logo.png" alt="CBA Logo" class="brand-logo-img">
+      </div>
       <div class="brand-text">
+        <div class="brand-meta">
+          <span class="brand-callsign">NET // CBA-OPS</span>
+          <span class="brand-station-tag">FAB-01</span>
+        </div>
         <h1>PETA JARINGAN PABRIK</h1>
-        <p>Monitoring &amp; Kontrol Perangkat Jaringan Realtime</p>
       </div>
     </div>
     <div class="header-right">
-      <div class="stats" id="stats-bar"></div>
+      <!-- Telemetry Array: Inventory + Operational Status -->
+      <div class="telemetry-bar" id="stats-bar"></div>
+      <!-- Realtime Station Clock -->
+      <div class="station-clock" id="station-clock" title="Waktu Stasiun Operasional (WIB)">
+        <span class="clock-icon">⏱</span>
+        <span class="clock-val" id="station-clock-time">--:--:--</span>
+        <span class="clock-tz">WIB</span>
+      </div>
       <!-- User badge — diisi oleh app.js -->
       <div class="user-badge" id="user-badge"></div>
     </div>
