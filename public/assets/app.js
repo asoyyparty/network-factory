@@ -1571,76 +1571,390 @@ function refreshActiveView() {
   if (tab === 'routers') renderRoutersView();
 }
 
-function renderOfflineDevices() {
-  const panel = $('#offline-panel');
-  if (!panel) return;
+/* ── 12B. OFFLINE INCIDENT & RECOVERY CONSOLE (Hallmark Industrial Standard) ── */
 
+let offlineFilterType = 'all';
+let offlineFilterLoc = 'all';
+let offlineSearchTerm = '';
+let isBatchOfflinePinging = false;
+
+/* Batch Ping All Offline Devices to Test Recovery */
+async function pingAllOfflineDevices(btn) {
+  if (isBatchOfflinePinging) return;
   const offlineDevs = [];
   Object.entries(state.devices).forEach(([locId, devs]) => {
-    const loc = state.locations.find(l => l.id === locId);
     devs.forEach(d => {
-      if (d.status === 'Offline') {
-        offlineDevs.push({ ...d, locName: loc ? loc.nama : 'Unknown', locId });
+      if (d.status === 'Offline' && d.ip) {
+        offlineDevs.push(d);
       }
     });
   });
 
   if (offlineDevs.length === 0) {
+    showToast('Tidak ada perangkat offline dengan IP terdaftar', 'info');
+    return;
+  }
+
+  isBatchOfflinePinging = true;
+  btn.disabled = true;
+  const origHtml = btn.innerHTML;
+  btn.innerHTML = `<span class="bg-spinner" style="border-width:1.5px; width:11px; height:11px;"></span> <span>PROBE (0/${offlineDevs.length})...</span>`;
+
+  let recoveredCount = 0;
+  let stillOfflineCount = 0;
+
+  for (let i = 0; i < offlineDevs.length; i++) {
+    const d = offlineDevs[i];
+    try {
+      const res = await api.get(`/api/ping/now/${encodeURIComponent(d.ip)}`);
+      const data = await res.json();
+      if (data.online) {
+        recoveredCount++;
+        d.status = 'Online';
+        d.last_ping_ms = data.latency_ms;
+      } else {
+        stillOfflineCount++;
+        d.status = 'Offline';
+        d.last_ping_ms = null;
+      }
+    } catch (err) {
+      stillOfflineCount++;
+    }
+    btn.innerHTML = `<span class="bg-spinner" style="border-width:1.5px; width:11px; height:11px;"></span> <span>PROBE (${i + 1}/${offlineDevs.length})...</span>`;
+  }
+
+  isBatchOfflinePinging = false;
+  btn.disabled = false;
+  btn.innerHTML = origHtml;
+
+  if (recoveredCount > 0) {
+    showToast(`Pemulihan terdeteksi: ${recoveredCount} perangkat kembali ONLINE!`, 'ok');
+  } else {
+    showToast(`Pemeriksaan selesai: ${stillOfflineCount} perangkat masih belum merespons probe ICMP`, 'warn');
+  }
+
+  renderStats();
+  renderSidebar();
+  renderTopology();
+  renderOfflineDevices();
+}
+
+window.setOfflineTypeFilter = function(type) {
+  offlineFilterType = type;
+  renderOfflineDevices();
+};
+
+window.setOfflineLocFilter = function(locId) {
+  offlineFilterLoc = locId;
+  renderOfflineDevices();
+};
+
+window.onOfflineSearch = function(val) {
+  offlineSearchTerm = (val || '').trim().toLowerCase();
+  renderOfflineDevices();
+};
+
+function renderOfflineDevices() {
+  const panel = $('#offline-panel');
+  if (!panel) return;
+
+  const allOfflineDevs = [];
+  Object.entries(state.devices).forEach(([locId, devs]) => {
+    const loc = state.locations.find(l => l.id === locId);
+    devs.forEach(d => {
+      if (d.status === 'Offline') {
+        allOfflineDevs.push({
+          ...d,
+          locName: loc ? loc.nama : locId,
+          locZone: loc ? loc.zone : '',
+          locId
+        });
+      }
+    });
+  });
+
+  // Zero-defect Standby State (No Raw Emojis, Industrial Standard)
+  if (allOfflineDevs.length === 0) {
     panel.innerHTML = `
-      <div class="empty-state">
-        <div class="big-icon">✓</div>
-        <p style="color:var(--ok); font-weight:600">Semua Perangkat Online</p>
-        <p style="font-size:13px; color:var(--text-muted)">Tidak ada perangkat yang terdeteksi offline saat ini.</p>
+      <div class="empty-state" style="padding: 64px 20px; text-align: center;">
+        <div style="display:inline-flex; align-items:center; justify-content:center; width:48px; height:48px; border-radius:8px; background:rgba(63, 185, 80, 0.12); border:1px solid rgba(63, 185, 80, 0.3); margin-bottom:14px; color:var(--ok);">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+        </div>
+        <h3 style="font-family:var(--mono); color:var(--text); font-size:14px; font-weight:700; margin:0 0 6px;">INCIDENT CONSOLE // ALL SYSTEMS REACHABLE</h3>
+        <p style="color:var(--text-muted); font-size:12px; margin:0 0 16px; max-width:420px;">Seluruh node dan perangkat jaringan di semua gedung saat ini merespons probe ICMP dengan normal. Tidak ada insiden koneksi terputus.</p>
+        <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
+          <button class="tt-btn" onclick="switchTab('grid')">BUKA DASHBOARD GRID →</button>
+          <button class="tt-btn" onclick="switchTab('topo')">BUKA PETA TOPOLOGI →</button>
+        </div>
       </div>
     `;
     return;
   }
 
   const isAdmin = currentUser && currentUser.role === 'admin';
+  const totalOffline = allOfflineDevs.length;
 
-  const rows = offlineDevs.map(d => `
-    <tr>
-      <td><b>${escapeHtml(d.nama)}</b></td>
-      <td><span class="zone-badge" style="cursor:pointer" onclick="openDetail('${d.locId}')">${escapeHtml(d.locName)}</span></td>
-      <td>${escapeHtml(d.tipe)}</td>
-      <td>${escapeHtml(d.merk || '—')}</td>
-      <td class="ip-cell">${escapeHtml(d.ip || '—')} ${d.ip ? `<button class="icon-btn" title="Ping sekarang" onclick="pingNow('${d.id}','${d.ip}',this)">⟳</button>` : ''}</td>
-      <td>${statusBadge(d.status)} ${latencyChip(d.last_ping_ms)}</td>
-      <td><div class="row-actions">
-        ${isAdmin && d.mac ? `<button class="icon-btn" title="Wake on LAN (WoL)" onclick="wakeDevice('${d.id}')">⚡</button>` : ''}
-        ${isAdmin ? `<button class="icon-btn danger" title="Putus Sambungan dari Router" onclick="openKickModal('${d.id}','${escapeHtml(d.mac||'')}','${escapeHtml(d.ip||'')}','${escapeHtml(d.nama)}')">🚫</button>` : ''}
-        ${isAdmin ? `<button class="icon-btn" title="Ubah" onclick="editDevice('${d.id}')">✍</button>` : ''}
-        <button class="icon-btn" title="Riwayat Ping" onclick="openHistoryModal('${d.id}')">📊</button>
-        ${isAdmin && d.ip ? `<button class="icon-btn" title="Reboot SSH" onclick="openRebootModal('${d.id}')">↺</button>` : ''}
-      </div></td>
-    </tr>
-  `).join('');
+  // Telemetry Calculations
+  const affectedLocIds = Array.from(new Set(allOfflineDevs.map(d => d.locId)));
+  const affectedLocCount = affectedLocIds.length;
+  const infraOfflineCount = allOfflineDevs.filter(d => ['switch', 'router', 'gateway'].includes((d.tipe || '').toLowerCase())).length;
+  const clientOfflineCount = totalOffline - infraOfflineCount;
+
+  // Filter Options
+  const uniqueTypes = Array.from(new Set(allOfflineDevs.map(d => d.tipe).filter(Boolean)));
+  const uniqueLocs = affectedLocIds.map(id => {
+    const l = state.locations.find(loc => loc.id === id);
+    return { id, nama: l ? l.nama : id };
+  });
+
+  // Apply Filters
+  let filteredDevs = allOfflineDevs;
+  if (offlineFilterType !== 'all') {
+    filteredDevs = filteredDevs.filter(d => (d.tipe || '').toLowerCase() === offlineFilterType.toLowerCase());
+  }
+  if (offlineFilterLoc !== 'all') {
+    filteredDevs = filteredDevs.filter(d => d.locId === offlineFilterLoc);
+  }
+  if (offlineSearchTerm) {
+    filteredDevs = filteredDevs.filter(d =>
+      (d.nama || '').toLowerCase().includes(offlineSearchTerm) ||
+      (d.locName || '').toLowerCase().includes(offlineSearchTerm) ||
+      (d.ip || '').toLowerCase().includes(offlineSearchTerm) ||
+      (d.mac || '').toLowerCase().includes(offlineSearchTerm) ||
+      (d.merk || '').toLowerCase().includes(offlineSearchTerm) ||
+      (d.catatan || '').toLowerCase().includes(offlineSearchTerm)
+    );
+  }
+
+  // Desktop Table Rows
+  const tableRowsHtml = filteredDevs.map(d => {
+    const isInfra = ['switch', 'router', 'gateway'].includes((d.tipe || '').toLowerCase());
+    const tierClass = isInfra ? 'dist' : 'acc';
+
+    return `
+      <tr class="is-offline-row">
+        <td>
+          <div class="dt-dev-name-wrap">
+            <span class="tcard-dev-dot s-offline"></span>
+            <div class="dt-dev-info">
+              <b class="dt-dev-name">${escapeHtml(d.nama)}</b>
+              <span class="dt-dev-sub">${escapeHtml(d.merk || '—')}</span>
+            </div>
+          </div>
+        </td>
+        <td>
+          <button class="off-loc-btn" onclick="openDetail('${d.locId}')" title="Buka Detail Gedung ${escapeHtml(d.locName)}">
+            <span class="olb-name">${escapeHtml(d.locName)}</span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </button>
+        </td>
+        <td>
+          <span class="tc-tier-tag ${tierClass}">${escapeHtml(d.tipe || 'DEVICE')}</span>
+        </td>
+        <td class="ip-cell">
+          <div class="dt-ip-wrap">
+            ${d.ip ? `
+              <span class="dt-ip-code" onclick="navigator.clipboard.writeText('${d.ip}'); showToast('IP disalin ke clipboard','ok')" title="Klik untuk salin IP">
+                ${escapeHtml(d.ip)}
+              </span>
+              <button class="icon-btn" title="Probe Ping Sekarang" onclick="pingNow('${d.id}','${d.ip}',this)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              </button>
+            ` : '<span style="color:var(--text-muted)">—</span>'}
+          </div>
+          ${d.mac ? `<span class="dt-mac-code">${escapeHtml(d.mac)}</span>` : ''}
+        </td>
+        <td>
+          <div class="dt-status-wrap">
+            ${statusBadge(d.status)}
+            ${latencyChip(d.last_ping_ms)}
+          </div>
+        </td>
+        <td>
+          <div class="row-actions">
+            ${isAdmin && d.mac ? `
+              <button class="icon-btn" title="Wake on LAN (WoL)" onclick="wakeDevice('${d.id}')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+              </button>` : ''}
+            ${isAdmin ? `
+              <button class="icon-btn danger" title="Putus Sambungan Router (Kick)" onclick="openKickModal('${d.id}','${escapeHtml(d.mac||'')}','${escapeHtml(d.ip||'')}','${escapeHtml(d.nama)}')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
+              </button>` : ''}
+            ${isAdmin ? `
+              <button class="icon-btn" title="Ubah Perangkat" onclick="editDevice('${d.id}')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+              </button>` : ''}
+            <button class="icon-btn" title="Riwayat Latensi" onclick="openHistoryModal('${d.id}')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 3v18h18"></path><path d="M18 9l-5 5-4-4-3 3"></path></svg>
+            </button>
+            ${isAdmin && d.ip ? `
+              <button class="icon-btn" title="Reboot SSH" onclick="openRebootModal('${d.id}')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+              </button>` : ''}
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  // Mobile Fault Cards
+  const mobileCardsHtml = filteredDevs.map(d => {
+    return `
+      <div class="off-card">
+        <div class="off-card-head">
+          <div>
+            <div class="off-card-meta">
+              <span class="tc-tier-tag dist">${escapeHtml(d.tipe || 'DEV')}</span>
+              <span>${escapeHtml(d.merk || '')}</span>
+            </div>
+            <h4 class="off-card-title">${escapeHtml(d.nama)}</h4>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
+            ${statusBadge(d.status)}
+            ${latencyChip(d.last_ping_ms)}
+          </div>
+        </div>
+
+        <div class="off-card-loc-wrap">
+          <button class="off-loc-btn" onclick="openDetail('${d.locId}')">
+            <span>SITE: <b>${escapeHtml(d.locName)}</b></span>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+
+        <div class="off-card-net">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="color:var(--text-muted); font-size:10px;">IP:</span>
+            <span class="dt-ip-code" onclick="navigator.clipboard.writeText('${d.ip||''}'); showToast('IP disalin','ok')">${escapeHtml(d.ip || 'NO-IP')}</span>
+          </div>
+          ${d.mac ? `<span class="dt-mac-code">${escapeHtml(d.mac)}</span>` : ''}
+        </div>
+
+        ${d.catatan ? `<div style="font-size:11px; color:var(--text-muted); font-family:var(--sans); font-style:italic;">"${escapeHtml(d.catatan)}"</div>` : ''}
+
+        <div class="off-card-actions">
+          ${d.ip ? `
+            <button class="icon-btn" title="Probe Ping Sekarang" onclick="pingNow('${d.id}','${d.ip}',this)">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            </button>` : ''}
+          ${isAdmin && d.mac ? `
+            <button class="icon-btn" title="Wake on LAN" onclick="wakeDevice('${d.id}')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            </button>` : ''}
+          ${isAdmin && d.ip ? `
+            <button class="icon-btn" title="Reboot SSH" onclick="openRebootModal('${d.id}')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+            </button>` : ''}
+          <button class="icon-btn" title="Riwayat Latensi" onclick="openHistoryModal('${d.id}')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 3v18h18"></path><path d="M18 9l-5 5-4-4-3 3"></path></svg>
+          </button>
+          ${isAdmin ? `
+            <button class="icon-btn" title="Ubah Data" onclick="editDevice('${d.id}')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+            </button>` : ''}
+          ${isAdmin ? `
+            <button class="icon-btn danger" title="Putus Sambungan (Kick)" onclick="openKickModal('${d.id}','${escapeHtml(d.mac||'')}','${escapeHtml(d.ip||'')}','${escapeHtml(d.nama)}')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
+            </button>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
 
   panel.innerHTML = `
-    <div class="detail-head" style="margin-bottom: 20px">
-      <div>
-        <h2 style="font-size:22px; margin:0 0 6px; color:#fff; font-weight:600">⚠️ Perangkat Offline (${offlineDevs.length})</h2>
-        <p style="font-size:12px; color:var(--text-muted); margin:0">Daftar semua perangkat di seluruh gedung yang saat ini tidak merespons ping.</p>
+    <!-- Incident Mission Header -->
+    <div class="offline-head">
+      <div class="oh-lead">
+        <div class="oh-meta">
+          <span>INCIDENT LOG // ACTIVE FAULTS // FACTORY NETWORK</span>
+          <span class="bcard-id-tag" style="border-color:rgba(248,81,73,0.4); color:var(--alert);">ALERT SEVERITY-1</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <h2 class="oh-title">GANGGUAN PERANGKAT TERPUTUS</h2>
+          <span class="tcard-dev-tag alert" style="font-size:10px; padding:3px 8px;">
+            <span class="tcard-dev-dot s-offline"></span>${totalOffline} PERANGKAT OFFLINE
+          </span>
+        </div>
+      </div>
+
+      <div class="oh-actions">
+        <button class="oh-btn" onclick="pingAllOfflineDevices(this)" title="Lakukan probe ping ulang ke seluruh perangkat offline">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          <span>PROBE ULANG SEMUA</span>
+        </button>
+        <button class="oh-btn" onclick="switchTab('report')" title="Buka Laporan Uptime SLA">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 3v18h18"></path><path d="M18 9l-5 5-4-4-3 3"></path></svg>
+          <span>LAPORAN SLA</span>
+        </button>
       </div>
     </div>
-    <div class="device-table-wrap">
-      <table class="device-table">
-        <thead>
-          <tr>
-            <th>Nama</th>
-            <th>Gedung / Lokasi</th>
-            <th>Tipe</th>
-            <th>Merk/Model</th>
-            <th>IP Address</th>
-            <th>Status</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rows}
-        </tbody>
-      </table>
+
+    <!-- Incident Telemetry Metrics Strip -->
+    <div class="offline-metrics-strip">
+      <div class="tcm-item"><span class="tcm-k">TOTAL FAULTS</span><b class="tcm-v alert">${totalOffline}</b></div>
+      <div class="tcm-sep">│</div>
+      <div class="tcm-item"><span class="tcm-k">SITES AFFECTED</span><b class="tcm-v ${affectedLocCount > 0 ? 'warn' : 'ok'}">${affectedLocCount}</b></div>
+      <div class="tcm-sep">│</div>
+      <div class="tcm-item"><span class="tcm-k">INFRA DOWN</span><b class="tcm-v ${infraOfflineCount > 0 ? 'alert' : 'ok'}">${infraOfflineCount}</b></div>
+      <div class="tcm-sep">│</div>
+      <div class="tcm-item"><span class="tcm-k">CLIENT ENDPOINTS</span><b class="tcm-v">${clientOfflineCount}</b></div>
     </div>
+
+    <!-- Incident Triage & Filter Bar -->
+    <div class="offline-filter-bar">
+      <div class="of-status-group">
+        <button class="of-pill ${offlineFilterType === 'all' ? 'active' : ''}" onclick="setOfflineTypeFilter('all')">SEMUA (${totalOffline})</button>
+        ${uniqueTypes.map(t => {
+          const count = allOfflineDevs.filter(d => (d.tipe || '').toLowerCase() === t.toLowerCase()).length;
+          return `<button class="of-pill ${offlineFilterType.toLowerCase() === t.toLowerCase() ? 'active' : ''}" onclick="setOfflineTypeFilter('${escapeHtml(t)}')">${escapeHtml(t).toUpperCase()} (${count})</button>`;
+        }).join('')}
+      </div>
+
+      <div class="of-right">
+        ${uniqueLocs.length > 0 ? `
+          <select class="of-select" onchange="setOfflineLocFilter(this.value)">
+            <option value="all">Semua Lokasi (${uniqueLocs.length})</option>
+            ${uniqueLocs.map(l => `<option value="${escapeHtml(l.id)}" ${offlineFilterLoc === l.id ? 'selected' : ''}>${escapeHtml(l.nama)}</option>`).join('')}
+          </select>
+        ` : ''}
+
+        <div class="tt-search-wrap">
+          <svg class="tt-search-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          <input type="text" class="of-search" placeholder="Cari nama, lokasi, IP..." value="${escapeHtml(offlineSearchTerm)}" oninput="onOfflineSearch(this.value)">
+          ${offlineSearchTerm ? `<button class="tt-clear-search" onclick="onOfflineSearch('')">×</button>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <!-- Content (Desktop Table + Mobile Cards) -->
+    ${filteredDevs.length === 0 ? `
+      <div class="empty-state" style="padding:40px 20px; text-align:center; background:var(--panel); border:1px solid var(--border); border-radius:6px;">
+        <p style="color:var(--text); font-weight:600; margin:0 0 4px; font-family:var(--mono);">// TIDAK ADA PERANGKAT YANG COCOK DENGAN FILTER</p>
+        <p style="color:var(--text-muted); font-size:12px; margin:0;">Sesuaikan filter tipe atau kata kunci pencarian.</p>
+      </div>
+    ` : `
+      <!-- Desktop Industrial Incident Table -->
+      <div class="device-table-wrap">
+        <table class="device-table">
+          <thead>
+            <tr>
+              <th>PERANGKAT & MODEL</th>
+              <th>LOKASI / GEDUNG</th>
+              <th>TIPE</th>
+              <th>ALAMAT IP & MAC</th>
+              <th>STATUS KONEKSI</th>
+              <th style="text-align:right">AKSI PEMULIHAN</th>
+            </tr>
+          </thead>
+          <tbody>${tableRowsHtml}</tbody>
+        </table>
+      </div>
+
+      <!-- Mobile Incident Fault Cards -->
+      <div class="offline-cards-mobile">
+        ${mobileCardsHtml}
+      </div>
+    `}
   `;
 }
 $$('.tab-btn').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
