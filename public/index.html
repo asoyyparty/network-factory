@@ -1149,21 +1149,22 @@
   </div>
 </div>
 
-<!-- ── MODAL: Add/Edit Router/AP ── -->
+<!-- ── MODAL: Add/Edit Router/AP (Hallmark Design) ── -->
 <div class="modal-overlay" id="router-form-modal" data-modal="routerform">
   <div class="modal" style="max-width:540px; width:95%">
     <button class="modal-close" onclick="closeRouterFormModal()" title="Tutup">✕</button>
-    <p class="modal-title" id="rf-modal-title">📡 Tambah Router / AP Baru</p>
+    <div style="font-family:var(--mono);font-size:9.5px;font-weight:700;color:var(--accent);letter-spacing:0.1em;margin-bottom:4px">GATEWAY CONFIGURATION // SSH TERMINAL LINK</div>
+    <p class="modal-title" id="rf-modal-title" style="margin:0 0 14px;font-size:17px;font-weight:700;color:#fff">Tambah Router / Access Point Baru</p>
     <form id="router-form" onsubmit="event.preventDefault(); submitRouterForm();">
       <input type="hidden" id="rf-id">
       <div class="form-grid" style="grid-template-columns:1fr 1fr; gap:12px;">
         <div class="field span-2">
           <label>Nama Router / AP</label>
-          <input type="text" id="rf-name" placeholder="cth: AP Wi-Fi Gedung B" required>
+          <input type="text" id="rf-name" placeholder="cth: Gateway Pabrik Utama / AP Gedung B" required>
         </div>
         <div class="field">
           <label>Host / IP Address</label>
-          <input type="text" id="rf-host" placeholder="cth: 192.168.2.1" required>
+          <input type="text" id="rf-host" placeholder="cth: 192.168.1.1" required>
         </div>
         <div class="field">
           <label>SSH Port</label>
@@ -1177,7 +1178,7 @@
           <label>Password SSH</label>
           <div style="display:flex;gap:6px">
             <input type="password" id="rf-pass" placeholder="••••••••" style="flex:1">
-            <button type="button" class="icon-btn" onclick="togglePasswordVisibility('rf-pass', this)" title="Tampilkan Password" style="flex-shrink:0;height:40px;width:40px;display:flex;align-items:center;justify-content:center">👁️</button>
+            <button type="button" class="icon-btn" onclick="togglePasswordVisibility('rf-pass', this)" title="Tampilkan Password" style="flex-shrink:0;height:40px;width:40px;display:flex;align-items:center;justify-content:center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
           </div>
         </div>
         <div class="field span-2">
@@ -1402,11 +1403,12 @@
   </div>
 </div>
 
-<!-- ── MODAL: Disconnect / Kick Device ── -->
+<!-- ── MODAL: Disconnect / Kick Device (Hallmark Design) ── -->
 <div class="modal-overlay" id="kick-modal" data-modal="kick">
   <div class="modal" style="max-width:480px; width:95%">
     <button class="modal-close" onclick="closeKickModal()" title="Tutup">✕</button>
-    <p class="modal-title" style="color:var(--alert)">🚫 Putus Sambungan Perangkat</p>
+    <div style="font-family:var(--mono);font-size:9.5px;font-weight:700;color:#f87171;letter-spacing:0.1em;margin-bottom:4px">SECURITY ENFORCEMENT // ACCESS TERMINATION</div>
+    <p class="modal-title" style="margin:0 0 14px;font-size:17px;font-weight:700;color:#fff">Isolasi & Putus Sambungan Klien</p>
     <div id="kick-modal-body"></div>
   </div>
 </div>

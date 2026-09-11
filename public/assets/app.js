@@ -4242,9 +4242,13 @@ async function deleteUser(id, username) {
   }
 }
 
-/* ── 21B. ROUTER & CLIENT MANAGEMENT PANEL ────────────────────────── */
+/* ── 21B. ROUTER & CLIENT MANAGEMENT (HALLMARK GATEWAY & WIRELESS ARBITRATION WORKBENCH) ── */
 let selectedRouterForClients = null;
 let currentInspectedClients = [];
+let currentBlockedList = [];
+let currentWifiFilterBand = 'ALL';
+let clientSearchTerm = '';
+let clientSearchDebounceTimer = null;
 
 async function renderRoutersView() {
   const panel = $('#routers-view-panel');
@@ -4260,69 +4264,155 @@ async function renderRoutersView() {
 
   const activeRouterObj = currentRoutersList.find(r => r.id === selectedRouterForClients);
 
+  // Router Chassis Cards
   const routerCards = currentRoutersList.map(r => {
     const isSelected = r.id === selectedRouterForClients;
+    const osType = String(r.router_type || 'mikrotik').toUpperCase();
     return `
-      <div class="bcard ${isSelected ? 'status-ok' : 'status-idle'}" style="cursor:pointer; ${isSelected ? 'border-color:var(--accent); background:rgba(56,189,248,0.06)' : ''}" onclick="selectRouterForInspection(${r.id})">
-        <div class="bcard-head" style="margin-bottom:8px">
-          <div>
-            <span class="bcard-zone">${escapeHtml(r.router_type || 'mikrotik').toUpperCase()}</span>
-            <h3 class="bcard-title" style="font-size:15px">${escapeHtml(r.name)}</h3>
+      <div class="rt-chassis-card ${isSelected ? 'is-selected' : ''}" onclick="selectRouterForInspection(${r.id})">
+        <div class="rt-chassis-top">
+          <span class="rt-os-pill">${escapeHtml(osType)}</span>
+          <div class="rt-status-indicator ${isSelected ? 'active' : 'idle'}">
+            <span class="rt-led"></span>
+            <span>${isSelected ? 'AKTIF TERPILIH' : 'KLIK INSPEKSI'}</span>
           </div>
-          ${isSelected ? '<span class="bcard-badge ok">✓ Terpilih</span>' : '<span class="bcard-badge idle">Klik Pilih</span>'}
         </div>
-        <div style="font-family:var(--mono); font-size:12px; color:var(--text-muted); margin-bottom:12px">
-          <div>🌐 Host: <b>${escapeHtml(r.host)}:${r.port}</b></div>
-          <div>👤 User: <b>${escapeHtml(r.username)}</b></div>
+        <h4 class="rt-chassis-title">${escapeHtml(r.name)}</h4>
+        <div class="rt-chassis-meta">
+          <div class="rt-chassis-meta-row">
+            <span>Host / Port:</span>
+            <strong>${escapeHtml(r.host)}:${r.port}</strong>
+          </div>
+          <div class="rt-chassis-meta-row">
+            <span>Username SSH:</span>
+            <strong>${escapeHtml(r.username)}</strong>
+          </div>
         </div>
-        <div class="row-actions" style="justify-content:flex-end">
-          <button class="icon-btn" title="Tes Koneksi SSH" onclick="event.stopPropagation(); testRouterConnection(${r.id}, this)">🔌</button>
-          ${isAdmin ? `<button class="icon-btn" title="Edit Router" onclick="event.stopPropagation(); openRouterFormModal(${r.id})">✍</button>` : ''}
-          ${isAdmin ? `<button class="icon-btn danger" title="Hapus Router" onclick="event.stopPropagation(); deleteRouter(${r.id}, '${escapeHtml(r.name)}')">✖</button>` : ''}
+        <div class="rt-chassis-actions">
+          <button class="rt-icon-btn" title="Tes Koneksi SSH" onclick="event.stopPropagation(); testRouterConnection(${r.id}, this)">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            Tes SSH
+          </button>
+          ${isAdmin ? `
+            <button class="rt-icon-btn" title="Edit Parameter Router" onclick="event.stopPropagation(); openRouterFormModal(${r.id})">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              Ubah
+            </button>
+            <button class="rt-icon-btn danger" title="Hapus Router" onclick="event.stopPropagation(); deleteRouter(${r.id}, '${escapeHtml(r.name)}')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              Hapus
+            </button>
+          ` : ''}
         </div>
       </div>
     `;
   }).join('');
 
+  // Initial counts
+  const totalRouters = currentRoutersList.length;
+  const countOnline = currentInspectedClients.length;
+  const count24G = currentInspectedClients.filter(c => c.band === '2.4GHz').length;
+  const count5G  = currentInspectedClients.filter(c => c.band === '5GHz').length;
+  const countBlocked = currentBlockedList.length;
+
   panel.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; flex-wrap:wrap; gap:16px">
-      <div>
-        <h2 style="font-size:22px; margin:0 0 6px; color:#fff; font-weight:600">📡 Manajemen Router & Klien Tersambung</h2>
-        <p style="font-size:13px; color:var(--text-muted); margin:0">Kelola router/AP dan lihat perangkat yang tersambung secara realtime via SSH.</p>
-      </div>
-      ${isAdmin ? `<button class="btn-primary" onclick="openRouterFormModal()">＋ Tambah Router / AP Baru</button>` : ''}
-    </div>
-
-    <!-- Router Grid Cards -->
-    <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap:16px; margin-bottom:28px">
-      ${routerCards || '<div class="empty-state" style="grid-column:1/-1; padding:20px">Belum ada Router / AP terdaftar. Silakan tambah router baru.</div>'}
-    </div>
-
-    <!-- Inspected Router Clients Table -->
-    <div style="background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:28px">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px">
+    <div class="rt-workbench">
+      <!-- Mission Head -->
+      <div class="rt-mission-head">
         <div>
-          <h3 style="font-size:16px; margin:0 0 4px; color:#fff">
-            🔎 Klien Tersambung ke: <span style="color:var(--accent)">${activeRouterObj ? escapeHtml(activeRouterObj.name) : 'Belum Ada Router'}</span>
-          </h3>
-          <p style="font-size:12px; color:var(--text-muted); margin:0">Daftar tabel ARP & perangkat aktif yang terhubung ke router ini.</p>
+          <div class="rt-callsign">
+            <span class="rt-live-dot"></span>
+            GATEWAY // MULTI-ROUTER & WIRELESS ARBITRATION
+          </div>
+          <h2 class="rt-title">Manajemen Gateway Router & Matriks Klien Tersambung</h2>
+          <p class="rt-desc">Pemantauan realtime tabel ARP nirkabel, kontrol isolasi MAC di firewall router, serta arbitrase distribusi frekuensi Wi-Fi.</p>
         </div>
-        ${activeRouterObj ? `<button class="btn-secondary" onclick="inspectRouterClients(${activeRouterObj.id})" style="padding:6px 14px; font-size:12px">⟳ Pindai Klien Live</button>` : ''}
+        <div class="rt-actions">
+          <button class="rt-btn rt-btn-refresh" id="rt-refresh-all-btn" onclick="refreshRoutersView()" title="Perbarui Data Router & Klien">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            Refresh
+          </button>
+          ${isAdmin ? `
+            <button class="rt-btn rt-btn-add" onclick="openRouterFormModal()" title="Tambah Router / AP Baru">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Tambah Router / AP
+            </button>
+          ` : ''}
+        </div>
       </div>
 
-      <div id="router-clients-container">
-        <p style="color:var(--text-muted); font-size:13px">Klik <b>"⟳ Pindai Klien Live"</b> untuk memuat perangkat tersambung.</p>
+      <!-- Telemetry Quad Strip -->
+      <div class="rt-kpi-strip">
+        <div class="rt-kpi-cell">
+          <span class="rt-kpi-lbl">TOTAL GATEWAY ROUTER</span>
+          <div class="rt-kpi-val">${totalRouters}</div>
+        </div>
+        <div class="rt-kpi-cell">
+          <span class="rt-kpi-lbl">KLIEN ONLINE REALTIME</span>
+          <div class="rt-kpi-val is-cyan" id="rt-kpi-online">${countOnline}</div>
+        </div>
+        <div class="rt-kpi-cell">
+          <span class="rt-kpi-lbl">SPEKTRUM 5G / 2.4G</span>
+          <div class="rt-kpi-val is-violet" id="rt-kpi-spectrum">${count5G} / ${count24G}</div>
+        </div>
+        <div class="rt-kpi-cell">
+          <span class="rt-kpi-lbl">FIREWALL BLACKLIST</span>
+          <div class="rt-kpi-val is-rose" id="rt-kpi-blocked">${countBlocked}</div>
+        </div>
       </div>
-    </div>
 
-    <!-- Blocked Devices Section (Blacklist MAC) -->
-    <div style="background:var(--panel); border:1px solid rgba(248,113,113,0.4); border-radius:12px; padding:20px">
-      <div style="margin-bottom:16px">
-        <h3 style="font-size:16px; margin:0 0 4px; color:var(--alert)">🔒 Daftar Perangkat Ter-Block Permanen (MAC Blacklist)</h3>
-        <p style="font-size:12px; color:var(--text-muted); margin:0">Perangkat di bawah ini telah di-blacklist di firewall & MAC filter router sehingga ditolak saat mencoba terhubung.</p>
+      <!-- Router Section -->
+      <div>
+        <div class="rt-section-head">
+          <span class="rt-section-title">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+            RACKMOUNT GATEWAY CHASSIS (PILIH UNTUK INSPEKSI ARBITRASI)
+          </span>
+          <span style="font-family:var(--mono); font-size:11px; color:var(--text-muted)">${currentRoutersList.length} Unit Terpasang</span>
+        </div>
+        <div class="rt-router-grid">
+          ${routerCards || '<div class="empty-state" style="grid-column:1/-1; padding:24px">Belum ada Router/AP terdaftar. Silakan klik "Tambah Router / AP".</div>'}
+        </div>
       </div>
-      <div id="blocked-devices-container">
-        <div style="text-align:center; padding:10px; color:var(--text-muted)">Memuat daftar block...</div>
+
+      <!-- Inspected Router Clients Table -->
+      <div class="rt-client-workbench">
+        <div class="rt-client-head">
+          <div>
+            <h3 class="rt-client-title">
+              Klien Terhubung ke: <span style="color:var(--accent)">${activeRouterObj ? escapeHtml(activeRouterObj.name) : 'Belum Ada Router'}</span>
+            </h3>
+            <p class="rt-client-sub">Inspeksi realtime tabel asosiasi nirkabel dan alokasi IP DHCP via remote SSH command.</p>
+          </div>
+          ${activeRouterObj ? `
+            <button class="rt-btn rt-btn-refresh" id="rt-scan-clients-btn" onclick="inspectRouterClients(${activeRouterObj.id})">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              Pindai Klien Live
+            </button>
+          ` : ''}
+        </div>
+
+        <div id="router-clients-container">
+          <div style="text-align:center; padding:32px 20px; color:var(--text-muted);">
+            Klik <b>"Pindai Klien Live"</b> untuk membaca perangkat yang terhubung.
+          </div>
+        </div>
+      </div>
+
+      <!-- Blocked Devices Section (Blacklist MAC) -->
+      <div class="rt-blacklist-panel">
+        <div class="rt-blacklist-head">
+          <div>
+            <h4 class="rt-blacklist-title">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              Daftar Perangkat Ter-Block Permanen (Firewall MAC Blacklist)
+            </h4>
+            <p class="rt-blacklist-desc">Perangkat di bawah ini dicekal permanen pada firewall router melalui ACL MAC Filter, sehingga akses jaringan ditolak secara mutlak.</p>
+          </div>
+        </div>
+        <div id="blocked-devices-container">
+          <div style="text-align:center; padding:12px; color:var(--text-muted);">Memuat daftar block...</div>
+        </div>
       </div>
     </div>
   `;
@@ -4331,6 +4421,20 @@ async function renderRoutersView() {
 
   if (activeRouterObj) {
     inspectRouterClients(activeRouterObj.id);
+  }
+}
+
+async function refreshRoutersView() {
+  const btn = $('#rt-refresh-all-btn');
+  if (btn) btn.classList.add('spinning');
+  try {
+    await loadRouters();
+    renderRoutersView();
+    showToast('Infrastruktur router berhasil diperbarui', 'ok');
+  } catch (err) {
+    showToast('Gagal memuat router: ' + err.message, 'error');
+  } finally {
+    if (btn) btn.classList.remove('spinning');
   }
 }
 
@@ -4343,8 +4447,11 @@ async function loadBlockedDevices() {
     const data = await res.json();
     currentBlockedList = data.blocked || [];
 
+    const kpiBlocked = $('#rt-kpi-blocked');
+    if (kpiBlocked) kpiBlocked.textContent = currentBlockedList.length;
+
     if (currentBlockedList.length === 0) {
-      container.innerHTML = '<div style="text-align:center; padding:16px; color:var(--ok); font-size:13px">✓ Tidak ada perangkat yang sedang di-block saat ini.</div>';
+      container.innerHTML = '<div style="text-align:center; padding:16px; color:#34d399; font-size:12.5px; font-family:var(--mono);">Tidak ada perangkat yang sedang dicekal di blacklist saat ini.</div>';
       return;
     }
 
@@ -4353,19 +4460,24 @@ async function loadBlockedDevices() {
     const rows = currentBlockedList.map(b => `
       <tr>
         <td><b>${escapeHtml(b.device_name || 'Perangkat')}</b></td>
-        <td style="font-family:var(--mono); font-size:12px; color:var(--alert); font-weight:600">${escapeHtml(b.mac)}</td>
+        <td style="font-family:var(--mono); font-size:11.5px; color:#f87171; font-weight:700">${escapeHtml(b.mac)}</td>
         <td class="ip-cell">${escapeHtml(b.ip || '—')}</td>
-        <td><span class="zone-badge" style="background:var(--panel-2); color:var(--text-muted)">${escapeHtml(b.router_name || 'Router')}</span></td>
-        <td style="font-family:var(--mono); font-size:12px; color:var(--text-muted)">${new Date(b.blocked_at).toLocaleString('id-ID')}</td>
+        <td><span class="rt-os-pill" style="color:var(--text-muted); border-color:var(--border)">${escapeHtml(b.router_name || 'Router')}</span></td>
+        <td style="font-family:var(--mono); font-size:11.5px; color:var(--text-muted)">${new Date(b.blocked_at).toLocaleString('id-ID')}</td>
         <td>
-          ${isAdmin ? `<button class="btn-secondary" style="padding:4px 10px; font-size:11px; border-color:var(--ok); color:var(--ok)" onclick="submitUnblockDevice(${b.id})">🔓 Buka Block (Unblock)</button>` : ''}
+          ${isAdmin ? `
+            <button class="rt-icon-btn" style="color:#34d399; border-color:rgba(52,211,153,0.3)" onclick="submitUnblockDevice(${b.id})">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/></svg>
+              Buka Block (Unblock)
+            </button>
+          ` : ''}
         </td>
       </tr>
     `).join('');
 
     container.innerHTML = `
-      <div class="device-table-wrap">
-        <table class="device-table">
+      <div class="rt-table-wrap">
+        <table class="rt-table">
           <thead>
             <tr>
               <th>Perangkat</th>
@@ -4373,7 +4485,7 @@ async function loadBlockedDevices() {
               <th>IP Address</th>
               <th>Router Asal</th>
               <th>Waktu Block</th>
-              <th>Aksi</th>
+              <th>Aksi Pemulihan</th>
             </tr>
           </thead>
           <tbody>
@@ -4383,22 +4495,28 @@ async function loadBlockedDevices() {
       </div>
     `;
   } catch (err) {
-    container.innerHTML = `<div style="color:var(--alert)">Gagal memuat data block: ${escapeHtml(err.message)}</div>`;
+    container.innerHTML = `<div style="color:var(--alert); padding:10px;">Gagal memuat data block: ${escapeHtml(err.message)}</div>`;
   }
 }
 
 function selectRouterForInspection(routerId) {
+  if (selectedRouterForClients === routerId) return;
   selectedRouterForClients = routerId;
   renderRoutersView();
 }
 
-let currentWifiFilterBand = 'ALL';
-
 async function inspectRouterClients(routerId) {
   const container = $('#router-clients-container');
+  const scanBtn = $('#rt-scan-clients-btn');
+  if (scanBtn) scanBtn.classList.add('spinning');
   if (!container) return;
 
-  container.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text-muted)">⏳ Membaca data perangkat tersambung dari frekuensi Wi-Fi 2.4GHz & 5GHz router via SSH...</div>';
+  container.innerHTML = `
+    <div style="padding:28px 20px; text-align:center; color:var(--text-muted);">
+      <div class="rt-live-dot" style="margin-bottom:8px;"></div>
+      <div>Membaca asosiasi nirkabel 2.4GHz & 5GHz via remote SSH command...</div>
+    </div>
+  `;
 
   try {
     const res = await api.get(`/api/devices/routers/${routerId}/clients`);
@@ -4407,18 +4525,33 @@ async function inspectRouterClients(routerId) {
 
     currentInspectedClients = data.clients || [];
 
-    if (currentInspectedClients.length === 0) {
-      container.innerHTML = '<div style="padding:20px; text-align:center; color:var(--text-muted)">Tidak ada perangkat nirkabel yang tersambung ke jaringan Wi-Fi router ini saat ini.</div>';
-      return;
-    }
-
     const count24G = currentInspectedClients.filter(c => c.band === '2.4GHz').length;
     const count5G  = currentInspectedClients.filter(c => c.band === '5GHz').length;
     const countLAN = currentInspectedClients.filter(c => c.band === 'LAN').length;
 
+    const kpiOnline = $('#rt-kpi-online');
+    if (kpiOnline) kpiOnline.textContent = currentInspectedClients.length;
+    const kpiSpectrum = $('#rt-kpi-spectrum');
+    if (kpiSpectrum) kpiSpectrum.textContent = `${count5G} / ${count24G}`;
+
+    if (currentInspectedClients.length === 0) {
+      container.innerHTML = `
+        <div style="padding:32px 20px; text-align:center; color:var(--text-muted); background:rgba(255,255,255,0.02); border-radius:6px; border:1px dashed var(--border);">
+          Tidak ada perangkat nirkabel yang terhubung ke router ini saat ini.
+        </div>
+      `;
+      return;
+    }
+
     renderInspectedClientsTable(container, currentWifiFilterBand, count24G, count5G, countLAN);
   } catch (err) {
-    container.innerHTML = `<div style="padding:20px; color:var(--alert); text-align:center">❌ ${escapeHtml(err.message)}</div>`;
+    container.innerHTML = `
+      <div style="padding:20px; color:var(--alert); text-align:center; background:rgba(239,68,68,0.06); border-radius:6px; border:1px solid rgba(239,68,68,0.2);">
+        Gagal memindai klien router: ${escapeHtml(err.message)}
+      </div>
+    `;
+  } finally {
+    if (scanBtn) scanBtn.classList.remove('spinning');
   }
 }
 
@@ -4434,6 +4567,19 @@ function setWifiFilterBand(band) {
   renderInspectedClientsTable(container, band, count24G, count5G, countLAN);
 }
 
+function onClientSearchInput(val) {
+  clientSearchTerm = val.trim();
+  clearTimeout(clientSearchDebounceTimer);
+  clientSearchDebounceTimer = setTimeout(() => {
+    const container = $('#router-clients-container');
+    if (!container || !currentInspectedClients) return;
+    const count24G = currentInspectedClients.filter(c => c.band === '2.4GHz').length;
+    const count5G  = currentInspectedClients.filter(c => c.band === '5GHz').length;
+    const countLAN = currentInspectedClients.filter(c => c.band === 'LAN').length;
+    renderInspectedClientsTable(container, currentWifiFilterBand, count24G, count5G, countLAN);
+  }, 250);
+}
+
 function renderInspectedClientsTable(container, filterBand, count24G, count5G, countLAN) {
   const isAdmin = currentUser && currentUser.role === 'admin';
 
@@ -4446,66 +4592,137 @@ function renderInspectedClientsTable(container, filterBand, count24G, count5G, c
     filteredClients = currentInspectedClients.filter(c => c.band === 'LAN');
   }
 
+  if (clientSearchTerm) {
+    const q = clientSearchTerm.toLowerCase();
+    filteredClients = filteredClients.filter(c => 
+      (c.nama && c.nama.toLowerCase().includes(q)) ||
+      (c.ip && c.ip.toLowerCase().includes(q)) ||
+      (c.mac && c.mac.toLowerCase().includes(q))
+    );
+  }
+
+  // Desktop Table Rows
   const rows = filteredClients.map((c) => {
     const bandBadge = c.band === '5GHz'
-      ? `<span class="zone-badge" style="background:rgba(168,85,247,0.15); color:#c084fc; border:1px solid rgba(168,85,247,0.3)">⚡ 5 GHz</span>`
+      ? `<span class="rt-band-badge is-5g"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>5 GHz</span>`
       : c.band === '2.4GHz'
-      ? `<span class="zone-badge" style="background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.3)">📶 2.4 GHz</span>`
-      : `<span class="zone-badge" style="background:rgba(52,211,153,0.15); color:#34d399; border:1px solid rgba(52,211,153,0.3)">🔌 LAN / Kabel</span>`;
+      ? `<span class="rt-band-badge is-24g"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/></svg>2.4 GHz</span>`
+      : `<span class="rt-band-badge is-lan"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/></svg>LAN / Kabel</span>`;
+
+    const monBadge = c.is_monitored 
+      ? `<span class="rt-mon-badge is-monitored"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Terdaftar: ${escapeHtml(c.monitored_nama)}</span>` 
+      : `<span class="rt-mon-badge is-guest"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>Perangkat Tamu</span>`;
 
     return `
       <tr>
-        <td style="font-weight:600">${escapeHtml(c.nama)}</td>
-        <td class="ip-cell">${escapeHtml(c.ip)}</td>
-        <td style="font-family:var(--mono); font-size:12px">${escapeHtml(c.mac)}</td>
+        <td style="font-weight:700; color:#fff">${escapeHtml(c.nama)}</td>
+        <td class="ip-cell" style="cursor:pointer" onclick="navigator.clipboard.writeText('${c.ip||''}'); showToast('IP disalin: ${c.ip||''}','ok')">${escapeHtml(c.ip)}</td>
+        <td style="font-family:var(--mono); font-size:11.5px; color:#cbd5e1">${escapeHtml(c.mac)}</td>
         <td>${bandBadge}</td>
-        <td>
-          ${c.is_monitored 
-            ? `<span class="status-badge" style="color:var(--ok); background:rgba(52,211,153,0.15)">✓ Terdaftar: ${escapeHtml(c.monitored_nama)}</span>` 
-            : `<span class="status-badge" style="color:var(--warn); background:rgba(251,191,36,0.15)">⚪ Perangkat Baru</span>`}
-        </td>
+        <td>${monBadge}</td>
         <td>
           <div class="row-actions">
-            ${isAdmin ? `<button class="icon-btn danger" title="Putus Sambungan (Kick)" onclick="openKickModal(null, '${escapeHtml(c.mac)}', '${escapeHtml(c.ip)}', '${escapeHtml(c.nama)}')">🚫</button>` : ''}
+            ${isAdmin ? `
+              <button class="rt-icon-btn danger" title="Putus Sambungan (Kick / Block)" onclick="openKickModal(null, '${escapeHtml(c.mac)}', '${escapeHtml(c.ip)}', '${escapeHtml(c.nama)}')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                Putus / Block
+              </button>
+            ` : ''}
           </div>
         </td>
       </tr>
     `;
   }).join('');
 
+  // Mobile Client Cards
+  const mobileCards = filteredClients.map(c => {
+    const bandBadge = c.band === '5GHz'
+      ? `<span class="rt-band-badge is-5g">5 GHz</span>`
+      : c.band === '2.4GHz'
+      ? `<span class="rt-band-badge is-24g">2.4 GHz</span>`
+      : `<span class="rt-band-badge is-lan">LAN</span>`;
+
+    const monBadge = c.is_monitored 
+      ? `<span class="rt-mon-badge is-monitored">Terdaftar: ${escapeHtml(c.monitored_nama)}</span>` 
+      : `<span class="rt-mon-badge is-guest">Perangkat Tamu</span>`;
+
+    return `
+      <div class="rt-client-card">
+        <div class="rt-client-card-top">
+          <span style="font-weight:700; color:#fff; font-size:13.5px">${escapeHtml(c.nama)}</span>
+          ${bandBadge}
+        </div>
+        <div class="rt-client-card-meta">
+          <div class="rt-client-card-row">
+            <span>IP Address:</span>
+            <strong style="color:var(--accent); cursor:pointer" onclick="navigator.clipboard.writeText('${c.ip||''}'); showToast('IP disalin','ok')">${escapeHtml(c.ip)}</strong>
+          </div>
+          <div class="rt-client-card-row">
+            <span>MAC Address:</span>
+            <strong>${escapeHtml(c.mac)}</strong>
+          </div>
+          <div class="rt-client-card-row">
+            <span>Status CBA:</span>
+            ${monBadge}
+          </div>
+        </div>
+        <div class="rt-client-card-actions">
+          ${isAdmin ? `
+            <button class="rt-icon-btn danger" onclick="openKickModal(null, '${escapeHtml(c.mac)}', '${escapeHtml(c.ip)}', '${escapeHtml(c.nama)}')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+              Putus Sambungan (Kick / Block)
+            </button>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
   container.innerHTML = `
-    <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap">
-      <span style="font-size:12px; color:var(--text-muted); font-weight:600">Filter Jaringan:</span>
-      <button class="tab-btn ${filterBand === 'ALL' ? 'active' : ''}" onclick="setWifiFilterBand('ALL')" style="padding:4px 12px; font-size:12px">
-        Semua Perangkat (${currentInspectedClients.length})
-      </button>
-      <button class="tab-btn ${filterBand === '2.4G' ? 'active' : ''}" onclick="setWifiFilterBand('2.4G')" style="padding:4px 12px; font-size:12px; border-color:rgba(56,189,248,0.4)">
-        📶 Wi-Fi 2.4 GHz (${count24G})
-      </button>
-      <button class="tab-btn ${filterBand === '5G' ? 'active' : ''}" onclick="setWifiFilterBand('5G')" style="padding:4px 12px; font-size:12px; border-color:rgba(168,85,247,0.4)">
-        ⚡ Wi-Fi 5 GHz (${count5G})
-      </button>
-      <button class="tab-btn ${filterBand === 'LAN' ? 'active' : ''}" onclick="setWifiFilterBand('LAN')" style="padding:4px 12px; font-size:12px; border-color:rgba(52,211,153,0.4)">
-        🔌 LAN / Kabel (${countLAN})
-      </button>
+    <!-- Spectrum Band Pills & Search Toolbar -->
+    <div class="rt-toolbar">
+      <div class="rt-pills-row">
+        <button class="rt-pill ${filterBand === 'ALL' ? 'active' : ''}" onclick="setWifiFilterBand('ALL')">
+          Semua (${currentInspectedClients.length})
+        </button>
+        <button class="rt-pill ${filterBand === '5G' ? 'active is-violet' : ''}" onclick="setWifiFilterBand('5G')">
+          Wi-Fi 5 GHz (${count5G})
+        </button>
+        <button class="rt-pill ${filterBand === '2.4G' ? 'active is-cyan' : ''}" onclick="setWifiFilterBand('2.4G')">
+          Wi-Fi 2.4 GHz (${count24G})
+        </button>
+        <button class="rt-pill ${filterBand === 'LAN' ? 'active is-emerald' : ''}" onclick="setWifiFilterBand('LAN')">
+          LAN / Kabel (${countLAN})
+        </button>
+      </div>
+      <div class="rt-search-wrap">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" class="rt-search-input" placeholder="Cari hostname, IP, atau MAC..." value="${escapeHtml(clientSearchTerm)}" oninput="onClientSearchInput(this.value)">
+      </div>
     </div>
 
-    <div class="device-table-wrap">
-      <table class="device-table">
+    <!-- Desktop Table -->
+    <div class="rt-table-wrap">
+      <table class="rt-table">
         <thead>
           <tr>
-            <th>Nama / Label</th>
+            <th>Nama / Hostname</th>
             <th>IP Address</th>
             <th>MAC Address</th>
-            <th>Jaringan Wi-Fi</th>
-            <th>Status Monitoring</th>
-            <th>Aksi</th>
+            <th>Spektrum Frekuensi</th>
+            <th>Status Registrasi CBA</th>
+            <th>Tindakan Keamanan</th>
           </tr>
         </thead>
         <tbody>
-          ${rows || `<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted)">Tidak ada perangkat tersambung pada filter ${filterBand === '2.4G' ? '2.4 GHz' : filterBand === '5G' ? '5 GHz' : 'Wi-Fi'}.</td></tr>`}
+          ${rows || `<tr><td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted)">Tidak ada perangkat tersambung pada filter ini.</td></tr>`}
         </tbody>
       </table>
+    </div>
+
+    <!-- Mobile Feed Cards -->
+    <div class="rt-feed-mobile">
+      ${mobileCards || `<div style="text-align:center; padding:24px; color:var(--text-muted); background:rgba(255,255,255,0.02); border-radius:6px;">Tidak ada perangkat tersambung pada filter ini.</div>`}
     </div>
   `;
 }
@@ -4859,7 +5076,10 @@ async function deleteRouter(id, name) {
 }
 
 async function testRouterConnection(id, btn) {
-  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinning"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg> Menguji...`;
+  }
   try {
     const res = await api.post(`/api/devices/routers/${id}/test`);
     const data = await res.json();
@@ -4868,13 +5088,15 @@ async function testRouterConnection(id, btn) {
   } catch (err) {
     showToast(err.message, 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '🔌'; }
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> Tes SSH`;
+    }
   }
 }
 
 /* ── 20B. DISCONNECT / KICK & BLOCK DEVICE ─────────────────────────── */
 let activeKickPayload = null;
-let currentBlockedList = [];
 
 async function openKickModal(deviceId, mac, ip, name) {
   const modal = $('#kick-modal');
@@ -4895,22 +5117,28 @@ async function openKickModal(deviceId, mac, ip, name) {
 
   body.innerHTML = `
     <div style="margin-bottom:16px;">
-      <p style="font-size:13px; color:var(--text-muted); margin:0 0 10px">
-        Pilih tindakan keamanan untuk perangkat <b>"${escapeHtml(name)}"</b>:
+      <p style="font-size:12.5px; color:var(--text-muted); margin:0 0 10px; line-height:1.4">
+        Pilih tindakan mitigasi keamanan untuk perangkat <b>"${escapeHtml(name)}"</b>:
       </p>
-      <div style="background:var(--panel-2); padding:12px 14px; border-radius:8px; border:1px solid var(--border); font-family:var(--mono); font-size:12.5px; margin-bottom:16px">
-        <div>• <b>Nama:</b> ${escapeHtml(name)}</div>
-        <div>• <b>IP Address:</b> ${escapeHtml(ip || '—')}</div>
-        <div>• <b>MAC Address:</b> ${escapeHtml(mac || '—')}</div>
+      <div style="background:rgba(2,6,23,0.7); padding:12px 14px; border-radius:6px; border:1px solid var(--border); font-family:var(--mono); font-size:12px; margin-bottom:14px; display:flex; flex-direction:column; gap:4px">
+        <div style="color:#fff">• <b>Host:</b> ${escapeHtml(name)}</div>
+        <div style="color:var(--accent)">• <b>IP:</b> ${escapeHtml(ip || '—')}</div>
+        <div style="color:#cbd5e1">• <b>MAC:</b> ${escapeHtml(mac || '—')}</div>
       </div>
       <div class="field">
-        <label>Pilih Router / AP Wi-Fi Tujuan</label>
+        <label>Pilih Router Gateway Eksekutor</label>
         <select id="kick-router-id" style="width:100%; padding:10px">${routerOptions}</select>
       </div>
     </div>
     <div style="display:flex; flex-direction:column; gap:10px; margin-top:20px;">
-      <button class="btn-primary" style="background:var(--alert); border:none; color:#fff" onclick="submitBlockDevice()">🔒 BLOCK PERMANEN (Blacklist MAC & Firewall)</button>
-      <button class="btn-primary" style="background:var(--warn); border:none; color:#000" onclick="submitKickDevice()">⚡ Putus Koneksi Sementara (Deauth/Kick)</button>
+      <button class="btn-primary" style="background:#ef4444; border:1px solid #dc2626; color:#fff; display:flex; align-items:center; justify-content:center; gap:8px" onclick="submitBlockDevice()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        BLOCK PERMANEN (Blacklist MAC & Firewall)
+      </button>
+      <button class="btn-primary" style="background:rgba(251,191,36,0.15); border:1px solid rgba(251,191,36,0.35); color:#fbbf24; display:flex; align-items:center; justify-content:center; gap:8px" onclick="submitKickDevice()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
+        Putus Sambungan Sementara (Deauth / Kick)
+      </button>
       <button class="btn-secondary" onclick="closeKickModal()">Batal</button>
     </div>
   `;
