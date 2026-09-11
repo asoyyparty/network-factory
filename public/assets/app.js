@@ -3454,8 +3454,82 @@ function exportSlaExcel() {
   }
 }
 
-/* ── 21. AUDIT TRAIL VIEW ──────────────────────────────────────────── */
+/* ── 21. AUDIT TRAIL VIEW (HALLMARK COMPLIANCE LEDGER WORKBENCH) ── */
 let currentAuditLogs = [];
+let currentAuditStats = { total: 0, today: 0, critical: 0, users: [] };
+let auditFilterState = {
+  category: 'ALL',
+  user: 'ALL',
+  search: '',
+  limit: 100
+};
+let auditDebounceTimer = null;
+
+function getAuditBadgeHtml(action) {
+  const act = String(action || '').trim();
+  let cls = 'is-sys';
+  if (/add|tambah/i.test(act)) {
+    cls = 'is-add';
+  } else if (/pindah|move/i.test(act)) {
+    cls = 'is-move';
+  } else if (/delete|hapus|reboot|putus/i.test(act)) {
+    cls = 'is-crit';
+  } else if (/ssh|wol|wake/i.test(act)) {
+    cls = 'is-sys';
+  }
+  return `<span class="aud-badge ${cls}"><span class="aud-badge-dot"></span>${escapeHtml(act)}</span>`;
+}
+
+function formatAuditTime(dateStr) {
+  if (!dateStr) return { abs: '—', rel: '' };
+  const d = new Date(dateStr);
+  const abs = d.toLocaleString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
+  
+  const now = new Date();
+  const diffSec = Math.floor((now - d) / 1000);
+  let rel = '';
+  if (diffSec < 60) {
+    rel = 'baru saja';
+  } else if (diffSec < 3600) {
+    const mins = Math.floor(diffSec / 60);
+    rel = `${mins}m lalu`;
+  } else if (diffSec < 86400) {
+    const hrs = Math.floor(diffSec / 3600);
+    rel = `${hrs}j lalu`;
+  } else {
+    const days = Math.floor(diffSec / 86400);
+    rel = `${days}h lalu`;
+  }
+
+  return { abs, rel };
+}
+
+async function fetchAuditData() {
+  const params = new URLSearchParams({
+    limit: auditFilterState.limit,
+    offset: 0
+  });
+  if (auditFilterState.search) params.append('search', auditFilterState.search);
+  if (auditFilterState.user && auditFilterState.user !== 'ALL') params.append('username', auditFilterState.user);
+  if (auditFilterState.category && auditFilterState.category !== 'ALL') params.append('action_category', auditFilterState.category);
+
+  const res = await api.get(`/api/audit?${params.toString()}`);
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.error || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  currentAuditLogs = data.logs || [];
+  currentAuditStats = data.stats || { total: currentAuditLogs.length, today: 0, critical: 0, users: [] };
+}
 
 async function renderAuditView() {
   const panel = $('#audit-panel');
@@ -3468,45 +3542,269 @@ async function renderAuditView() {
   }
 
   try {
-    const res = await api.get('/api/audit?limit=100');
-    const data = await res.json();
-    currentAuditLogs = data.logs || [];
-    
-    const rows = currentAuditLogs.map(l => `
-      <tr>
-        <td style="font-family:var(--mono); font-size:12px; color:var(--text-muted);">${new Date(l.created_at).toLocaleString('id-ID')}</td>
-        <td><b>${escapeHtml(l.username)}</b></td>
-        <td><span class="zone-badge" style="background:var(--panel-2); color:var(--accent)">${escapeHtml(l.action)}</span></td>
-        <td>${escapeHtml(l.target_device || '—')}</td>
-        <td style="font-size:12px">${escapeHtml(l.details || '—')}</td>
-      </tr>
-    `).join('');
-
+    await fetchAuditData();
+    renderAuditDOM();
+  } catch (err) {
     panel.innerHTML = `
-      <div style="margin-bottom:20px;">
-        <h2 style="font-size:22px; margin:0 0 6px; color:#fff; font-weight:600">📜 Log Audit Sistem</h2>
-        <p style="font-size:13px; color:var(--text-muted); margin:0">Menampilkan 100 aktivitas sistem terbaru.</p>
+      <div class="aud-workbench">
+        <div class="aud-mission-head">
+          <div>
+            <div class="aud-callsign"><span class="aud-live-dot" style="background:#ef4444;box-shadow:0 0 8px #ef4444;"></span>AUDIT LEDGER ERROR</div>
+            <h2 class="aud-title">Gagal Memuat Log Audit</h2>
+            <p class="aud-desc" style="color:var(--alert)">${escapeHtml(err.message)}</p>
+          </div>
+          <div class="aud-actions">
+            <button class="aud-btn aud-btn-refresh" onclick="refreshAuditView()">Coba Lagi</button>
+          </div>
+        </div>
       </div>
-      <div class="device-table-wrap">
-        <table class="device-table">
+    `;
+  }
+}
+
+function renderAuditDOM() {
+  const panel = $('#audit-panel');
+  if (!panel) return;
+
+  const totalCount = currentAuditStats.total ?? currentAuditLogs.length;
+  const todayCount = currentAuditStats.today ?? 0;
+  const critCount = currentAuditStats.critical ?? 0;
+  const userList = currentAuditStats.users || [];
+  const activeOpsCount = userList.length || 1;
+
+  // Pills categories
+  const categories = [
+    { id: 'ALL', label: 'Semua' },
+    { id: 'DEVICE', label: 'Perangkat' },
+    { id: 'MOVE', label: 'Pemindahan' },
+    { id: 'SSH', label: 'Kontrol & SSH' },
+    { id: 'SYSTEM', label: 'Sistem' },
+    { id: 'CRITICAL', label: 'Kritikal', isCrit: true }
+  ];
+
+  const pillsHtml = categories.map(c => {
+    const isActive = auditFilterState.category === c.id;
+    const critClass = c.isCrit ? 'is-crit' : '';
+    const activeClass = isActive ? `active ${critClass}` : '';
+    return `<button class="aud-pill ${activeClass}" onclick="setAuditCategory('${c.id}')">${c.label}</button>`;
+  }).join('');
+
+  // Operator select options
+  const userOptionsHtml = ['<option value="ALL">Semua Operator</option>'].concat(
+    userList.map(u => `<option value="${escapeHtml(u)}" ${auditFilterState.user === u ? 'selected' : ''}>${escapeHtml(u)}</option>`)
+  ).join('');
+
+  // Limit select options
+  const limits = [50, 100, 250, 500];
+  const limitOptionsHtml = limits.map(l => 
+    `<option value="${l}" ${auditFilterState.limit === l ? 'selected' : ''}>${l} Log</option>`
+  ).join('');
+
+  // Desktop Table Rows
+  const tableRows = currentAuditLogs.length > 0 ? currentAuditLogs.map(l => {
+    const time = formatAuditTime(l.created_at);
+    return `
+      <tr>
+        <td>
+          <div class="aud-time-cell">
+            ${time.abs}
+            <span class="aud-time-rel">${time.rel}</span>
+          </div>
+        </td>
+        <td>
+          <span class="aud-user-pill">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            ${escapeHtml(l.username)}
+          </span>
+        </td>
+        <td>${getAuditBadgeHtml(l.action)}</td>
+        <td><span class="aud-target-dev">${escapeHtml(l.target_device || '—')}</span></td>
+        <td><div class="aud-details-text" title="${escapeHtml(l.details || '')}">${escapeHtml(l.details || '—')}</div></td>
+      </tr>
+    `;
+  }).join('') : `<tr><td colspan="5" style="text-align:center; padding:32px; color:var(--text-muted);">Tidak ada rekaman audit yang sesuai kriteria filter.</td></tr>`;
+
+  // Mobile Feed Cards
+  const mobileCards = currentAuditLogs.length > 0 ? currentAuditLogs.map(l => {
+    const time = formatAuditTime(l.created_at);
+    return `
+      <div class="aud-card">
+        <div class="aud-card-head">
+          ${getAuditBadgeHtml(l.action)}
+          <div class="aud-time-cell" style="text-align:right">
+            <span>${time.abs}</span>
+            <span class="aud-time-rel">${time.rel}</span>
+          </div>
+        </div>
+        <div class="aud-card-meta">
+          <span class="aud-user-pill">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            ${escapeHtml(l.username)}
+          </span>
+          ${l.target_device ? `<span class="aud-card-target">${escapeHtml(l.target_device)}</span>` : ''}
+        </div>
+        ${l.details ? `<div class="aud-card-details">${escapeHtml(l.details)}</div>` : ''}
+      </div>
+    `;
+  }).join('') : `<div style="text-align:center; padding:32px; color:var(--text-muted); background:rgba(15,23,42,0.8); border:1px dashed var(--border); border-radius:8px;">Tidak ada rekaman audit yang sesuai kriteria filter.</div>`;
+
+  panel.innerHTML = `
+    <div class="aud-workbench">
+      <!-- Mission Head -->
+      <div class="aud-mission-head">
+        <div>
+          <div class="aud-callsign">
+            <span class="aud-live-dot"></span>
+            SYS-AUDIT // IMMUTABLE LEDGER
+          </div>
+          <h2 class="aud-title">Log Audit & Kepatuhan Sistem</h2>
+          <p class="aud-desc">Pencatatan real-time jejak forensik seluruh operasi router, kontrol SSH, topologi perangkat, dan otentikasi user.</p>
+        </div>
+        <div class="aud-actions">
+          <button class="aud-btn aud-btn-refresh" id="aud-refresh-btn" onclick="refreshAuditView()" title="Perbarui Log Audit">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            Refresh
+          </button>
+          <button class="aud-btn aud-btn-export" onclick="exportAuditCsv()" title="Ekspor ke CSV">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Ekspor CSV
+          </button>
+        </div>
+      </div>
+
+      <!-- Telemetry Quad Strip -->
+      <div class="aud-kpi-strip">
+        <div class="aud-kpi-cell">
+          <span class="aud-kpi-lbl">TOTAL RECORD</span>
+          <div class="aud-kpi-val">${totalCount.toLocaleString('id-ID')}</div>
+        </div>
+        <div class="aud-kpi-cell">
+          <span class="aud-kpi-lbl">HARI INI</span>
+          <div class="aud-kpi-val is-cyan">${todayCount.toLocaleString('id-ID')}</div>
+        </div>
+        <div class="aud-kpi-cell">
+          <span class="aud-kpi-lbl">AKSI KRITIKAL</span>
+          <div class="aud-kpi-val is-crit">${critCount.toLocaleString('id-ID')}</div>
+        </div>
+        <div class="aud-kpi-cell">
+          <span class="aud-kpi-lbl">OPERATOR AKTIF</span>
+          <div class="aud-kpi-val is-emerald">${activeOpsCount}</div>
+        </div>
+      </div>
+
+      <!-- Triage Toolbar -->
+      <div class="aud-toolbar">
+        <div class="aud-pills-row">
+          ${pillsHtml}
+        </div>
+        <div class="aud-search-row">
+          <div class="aud-search-wrap">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="text" class="aud-search-input" id="aud-search-input" placeholder="Cari aksi, perangkat, detail, atau IP..." value="${escapeHtml(auditFilterState.search)}" oninput="onAuditSearchInput(this.value)">
+          </div>
+          <select class="aud-select" onchange="onAuditUserChange(this.value)" aria-label="Filter Operator">
+            ${userOptionsHtml}
+          </select>
+          <select class="aud-select" onchange="onAuditLimitChange(this.value)" aria-label="Limit Baris">
+            ${limitOptionsHtml}
+          </select>
+        </div>
+      </div>
+
+      <!-- Desktop Table View -->
+      <div class="aud-table-wrap">
+        <table class="aud-table">
           <thead>
             <tr>
-              <th>Waktu</th>
-              <th>User</th>
-              <th>Aksi</th>
-              <th>Target</th>
-              <th>Detail</th>
+              <th>Waktu (WIB)</th>
+              <th>Operator</th>
+              <th>Aksi / Kategori</th>
+              <th>Target Perangkat</th>
+              <th>Deskripsi & Parameter Audit</th>
             </tr>
           </thead>
           <tbody>
-            ${rows || '<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">Belum ada log aktivitas.</td></tr>'}
+            ${tableRows}
           </tbody>
         </table>
       </div>
-    `;
+
+      <!-- Mobile Timeline Feed Cards -->
+      <div class="aud-feed-mobile">
+        ${mobileCards}
+      </div>
+    </div>
+  `;
+}
+
+async function refreshAuditView() {
+  const btn = $('#aud-refresh-btn');
+  if (btn) btn.classList.add('spinning');
+  try {
+    await fetchAuditData();
+    renderAuditDOM();
+    showToast('Log audit berhasil diperbarui', 'ok');
   } catch (err) {
-    panel.innerHTML = `<p style="color:var(--alert)">Gagal memuat log audit: ${err.message}</p>`;
+    showToast('Gagal memuat log audit: ' + err.message, 'error');
+  } finally {
+    if (btn) btn.classList.remove('spinning');
   }
+}
+
+function setAuditCategory(cat) {
+  if (auditFilterState.category === cat) return;
+  auditFilterState.category = cat;
+  renderAuditView();
+}
+
+function onAuditUserChange(user) {
+  auditFilterState.user = user;
+  renderAuditView();
+}
+
+function onAuditLimitChange(limit) {
+  auditFilterState.limit = parseInt(limit) || 100;
+  renderAuditView();
+}
+
+function onAuditSearchInput(val) {
+  auditFilterState.search = val.trim();
+  clearTimeout(auditDebounceTimer);
+  auditDebounceTimer = setTimeout(() => {
+    renderAuditView();
+  }, 350);
+}
+
+function exportAuditCsv() {
+  if (!currentAuditLogs || currentAuditLogs.length === 0) {
+    showToast('Tidak ada data audit untuk diekspor', 'warning');
+    return;
+  }
+  const headers = ['ID', 'Waktu', 'Operator', 'Aksi', 'Target Perangkat', 'Detail'];
+  const csvRows = [headers.join(',')];
+  
+  for (const l of currentAuditLogs) {
+    const row = [
+      l.id,
+      `"${String(l.created_at || '').replace(/"/g, '""')}"`,
+      `"${String(l.username || '').replace(/"/g, '""')}"`,
+      `"${String(l.action || '').replace(/"/g, '""')}"`,
+      `"${String(l.target_device || '').replace(/"/g, '""')}"`,
+      `"${String(l.details || '').replace(/"/g, '""')}"`
+    ];
+    csvRows.push(row.join(','));
+  }
+  
+  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `audit_trail_${new Date().toISOString().slice(0,10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  showToast(`Berhasil mengekspor ${currentAuditLogs.length} data audit ke CSV`, 'ok');
 }
 
 /* ── 21. USER MANAGEMENT ───────────────────────────────────────────── */

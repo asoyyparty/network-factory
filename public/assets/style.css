@@ -5301,8 +5301,522 @@ button:focus:not(:focus-visible) { outline: none; }
   }
   .zh-move-btn-exec, .zh-move-btn-cancel {
     width: 100%;
+  }
+}
+
+/* ── SECTION 10.12: HALLMARK REDESIGN — AUDIT TRAIL WORKBENCH (#view-audit / #audit-panel) ── */
+/* Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V5 */
+.aud-workbench {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* Mission Head */
+.aud-mission-head {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(2, 6, 23, 0.98));
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent, #38bdf8);
+  border-radius: 8px;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.5);
+}
+
+.aud-callsign {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--accent, #38bdf8);
+  margin-bottom: 4px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.aud-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  display: inline-block;
+  animation: pulse-dot 2s infinite ease-in-out;
+}
+
+.aud-title {
+  margin: 0 0 4px;
+  font-size: 19px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+.aud-desc {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  max-width: 700px;
+  line-height: 1.45;
+}
+
+.aud-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.aud-btn {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  touch-action: manipulation;
+}
+
+.aud-btn-refresh {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text);
+}
+.aud-btn-refresh:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.aud-btn-refresh.spinning svg {
+  animation: spin 0.7s linear infinite;
+}
+
+.aud-btn-export {
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #38bdf8;
+}
+.aud-btn-export:hover {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: #38bdf8;
+  color: #fff;
+}
+
+/* KPI Telemetry Strip */
+.aud-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  background: rgba(2, 6, 23, 0.7);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.aud-kpi-cell {
+  padding: 12px 16px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.aud-kpi-cell:last-child {
+  border-right: none;
+}
+
+.aud-kpi-lbl {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.aud-kpi-val {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.aud-kpi-val.is-crit {
+  color: #f87171;
+}
+.aud-kpi-val.is-cyan {
+  color: #38bdf8;
+}
+.aud-kpi-val.is-emerald {
+  color: #34d399;
+}
+
+/* Toolbar & Triage */
+.aud-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.aud-pills-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.aud-pill {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+  touch-action: manipulation;
+}
+.aud-pill:hover {
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.15);
+}
+.aud-pill.active {
+  background: rgba(56, 189, 248, 0.14);
+  border-color: rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+  font-weight: 700;
+}
+.aud-pill.active.is-crit {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #f87171;
+}
+
+.aud-pill-count {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  padding: 1px 5px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.aud-search-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.aud-search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+}
+.aud-search-wrap svg {
+  position: absolute;
+  left: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.aud-search-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px 0 34px;
+  background: var(--bg, #020617);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12.5px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+.aud-search-input:focus {
+  border-color: var(--accent, #38bdf8);
+}
+
+.aud-select {
+  height: 38px;
+  padding: 0 12px;
+  background: var(--bg, #020617);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: #fff;
+  font-size: 12px;
+  outline: none;
+  cursor: pointer;
+}
+.aud-select:focus {
+  border-color: var(--accent, #38bdf8);
+}
+
+/* Desktop Table Presentation */
+.aud-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  max-height: 560px;
+  overflow-y: auto;
+  background: rgba(11, 18, 32, 0.85);
+}
+
+.aud-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+
+.aud-table thead {
+  position: sticky;
+  top: 0;
+  background: rgba(15, 23, 42, 0.98);
+  z-index: 2;
+  border-bottom: 1px solid var(--border);
+}
+
+.aud-table th {
+  padding: 10px 14px;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.aud-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  vertical-align: middle;
+}
+.aud-table tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.aud-time-cell {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text);
+  white-space: nowrap;
+  line-height: 1.3;
+}
+.aud-time-rel {
+  font-size: 10px;
+  color: var(--text-muted);
+  display: block;
+}
+
+.aud-user-pill {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: #e2e8f0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Semantic Badges */
+.aud-badge {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.aud-badge-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.aud-badge.is-add {
+  background: rgba(16, 185, 129, 0.12);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.28);
+}
+.aud-badge.is-add .aud-badge-dot { background: #34d399; }
+
+.aud-badge.is-move {
+  background: rgba(168, 85, 247, 0.14);
+  color: #c084fc;
+  border: 1px solid rgba(168, 85, 247, 0.32);
+}
+.aud-badge.is-move .aud-badge-dot { background: #c084fc; }
+
+.aud-badge.is-crit {
+  background: rgba(239, 68, 68, 0.14);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.32);
+}
+.aud-badge.is-crit .aud-badge-dot { background: #f87171; }
+
+.aud-badge.is-sys {
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+}
+.aud-badge.is-sys .aud-badge-dot { background: #38bdf8; }
+
+.aud-target-dev {
+  font-weight: 600;
+  color: #fff;
+}
+
+.aud-details-text {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: #cbd5e1;
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aud-ip-tag {
+  font-family: var(--mono);
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.08);
+  padding: 1px 5px;
+  border-radius: 3px;
+  cursor: pointer;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+}
+.aud-ip-tag:hover {
+  background: rgba(56, 189, 248, 0.18);
+  border-color: #38bdf8;
+}
+
+/* Mobile Feed Presentation (Default Hidden on Desktop) */
+.aud-feed-mobile {
+  display: none;
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 768px) {
+  .aud-mission-head {
+    padding: 14px;
+  }
+  .aud-actions {
+    width: 100%;
+  }
+  .aud-btn {
+    flex: 1;
     min-height: 44px;
     justify-content: center;
+  }
+
+  .aud-kpi-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .aud-kpi-cell:nth-child(2) {
+    border-right: none;
+  }
+  .aud-kpi-cell:nth-child(3) {
+    border-top: 1px solid var(--border);
+  }
+  .aud-kpi-cell:nth-child(4) {
+    border-top: 1px solid var(--border);
+    border-right: none;
+  }
+
+  .aud-search-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .aud-select {
+    min-height: 44px;
+    width: 100%;
+  }
+  .aud-search-input {
+    min-height: 44px;
+  }
+
+  .aud-pill {
+    min-height: 38px;
+    padding: 8px 12px;
+  }
+
+  /* Switch Dual Presentation */
+  .aud-table-wrap {
+    display: none;
+  }
+  .aud-feed-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .aud-card {
+    background: rgba(15, 23, 42, 0.96);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .aud-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .aud-card-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 12px;
+  }
+
+  .aud-card-target {
+    font-weight: 700;
+    color: #fff;
+    font-size: 13px;
+  }
+
+  .aud-card-details {
+    padding: 8px 10px;
+    background: rgba(2, 6, 23, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 5px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: #cbd5e1;
+    word-break: break-word;
   }
 }
 
