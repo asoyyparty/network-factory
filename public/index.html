@@ -1082,51 +1082,57 @@
   </div>
 </div>
 
-<!-- ── MODAL: Add User ── -->
+<!-- ── MODAL: Add User (Hallmark Design) ── -->
 <div class="modal-overlay" id="add-user-modal" data-modal="adduser">
   <div class="modal" style="max-width:480px; width:95%">
     <button class="modal-close" id="close-add-user-btn" onclick="closeAddUserModal()" title="Tutup">✕</button>
-    <p class="modal-title">👤 Tambah Pengguna Baru</p>
+    <div style="font-family:var(--mono);font-size:9.5px;font-weight:700;color:var(--accent);letter-spacing:0.1em;margin-bottom:4px">OPERATOR ACCESS // NEW ACCOUNT</div>
+    <p class="modal-title" style="margin:0 0 14px;font-size:17px;font-weight:700;color:#fff">Tambah Akun Operator Baru</p>
     <div class="pwd-fields">
       <div class="field">
-        <label>Username</label>
-        <input type="text" id="au-username" placeholder="cth: operator1" autocomplete="off">
+        <label>Username Operator</label>
+        <input type="text" id="au-username" placeholder="cth: teknisi_noc" autocomplete="off">
       </div>
       <div class="field">
         <label>Password Default (min. 6 karakter)</label>
         <div style="display:flex;gap:6px">
           <input type="password" id="au-password" placeholder="••••••••" autocomplete="new-password" style="flex:1">
-          <button type="button" class="icon-btn" onclick="togglePasswordVisibility('au-password', this)" title="Tampilkan Password" style="flex-shrink:0;height:40px;width:40px;display:flex;align-items:center;justify-content:center">👁️</button>
+          <button type="button" class="icon-btn" onclick="togglePasswordVisibility('au-password', this)" title="Tampilkan Password" style="flex-shrink:0;height:40px;width:40px;display:flex;align-items:center;justify-content:center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
         </div>
       </div>
       <div class="field">
-        <label>Role / Hak Akses</label>
+        <label>Role / Otoritas Akses (RBAC)</label>
         <select id="au-role">
-          <option value="viewer">Viewer (Hanya Melihat & Monitoring)</option>
-          <option value="admin">Admin (Akses Penuh & Kontrol Device)</option>
+          <option value="viewer">Viewer (Hanya Melihat & Monitoring SLA)</option>
+          <option value="admin">Admin (Akses Penuh & Kontrol Router/SSH)</option>
         </select>
+        <div style="font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.4;background:rgba(255,255,255,0.03);padding:8px 10px;border-radius:4px;border:1px solid rgba(255,255,255,0.06)">
+          <span style="color:#cbd5e1"><b>Viewer:</b> Monitoring status, SLA & topologi (read-only).</span><br>
+          <span style="color:#38bdf8"><b>Admin:</b> Akses penuh kontrol router, SSH remote, & manajemen user.</span>
+        </div>
       </div>
       <p id="au-err" style="color:var(--alert);font-family:var(--mono);font-size:12px;margin:0"></p>
-      <div class="form-actions">
+      <div class="form-actions" style="margin-top:8px">
         <button class="btn-secondary" onclick="closeAddUserModal()">Batal</button>
-        <button class="btn-primary" onclick="submitAddUser()">Simpan User</button>
+        <button class="btn-primary" onclick="submitAddUser()">Simpan Operator</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ── MODAL: Reset User Password ── -->
+<!-- ── MODAL: Reset User Password (Hallmark Design) ── -->
 <div class="modal-overlay" id="reset-user-modal" data-modal="resetuser">
   <div class="modal" style="max-width:460px; width:95%">
     <button class="modal-close" id="close-reset-user-btn" onclick="closeResetUserModal()" title="Tutup">✕</button>
-    <p class="modal-title" id="ru-modal-title">🔑 Reset Password User</p>
+    <div style="font-family:var(--mono);font-size:9.5px;font-weight:700;color:var(--accent);letter-spacing:0.1em;margin-bottom:4px">SECURITY CREDENTIALS // PASSWORD OVERRIDE</div>
+    <p class="modal-title" id="ru-modal-title" style="margin:0 0 14px;font-size:17px;font-weight:700;color:#fff">Reset Password Operator</p>
     <input type="hidden" id="ru-user-id">
     <div class="pwd-fields">
       <div class="field">
         <label>Password Baru (min. 6 karakter)</label>
         <div style="display:flex;gap:6px">
           <input type="password" id="ru-password" placeholder="••••••••" autocomplete="new-password" style="flex:1">
-          <button type="button" class="icon-btn" onclick="togglePasswordVisibility('ru-password', this)" title="Tampilkan Password" style="flex-shrink:0;height:40px;width:40px;display:flex;align-items:center;justify-content:center">👁️</button>
+          <button type="button" class="icon-btn" onclick="togglePasswordVisibility('ru-password', this)" title="Tampilkan Password" style="flex-shrink:0;height:40px;width:40px;display:flex;align-items:center;justify-content:center"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
         </div>
       </div>
       <div class="field" style="margin-top:10px;">
@@ -1135,7 +1141,7 @@
         </label>
       </div>
       <p id="ru-err" style="color:var(--alert);font-family:var(--mono);font-size:12px;margin:0"></p>
-      <div class="form-actions">
+      <div class="form-actions" style="margin-top:8px">
         <button class="btn-secondary" onclick="closeResetUserModal()">Batal</button>
         <button class="btn-primary" onclick="submitResetUserPwd()">Reset Password</button>
       </div>

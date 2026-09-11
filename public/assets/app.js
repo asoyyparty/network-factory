@@ -3807,15 +3807,38 @@ function exportAuditCsv() {
   showToast(`Berhasil mengekspor ${currentAuditLogs.length} data audit ke CSV`, 'ok');
 }
 
-/* ── 21. USER MANAGEMENT ───────────────────────────────────────────── */
+/* ── 21. USER MANAGEMENT (HALLMARK OPERATOR ACCESS & RBAC WORKBENCH) ── */
 let currentUsersList = [];
+let userFilterRole = 'ALL';
+let userSearchTerm = '';
+let userSearchDebounceTimer = null;
+
+function formatUserLastLogin(dateStr) {
+  if (!dateStr) return { abs: 'Belum Pernah', rel: 'Tidak ada aktivitas' };
+  const d = new Date(dateStr);
+  const abs = d.toLocaleString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+  const now = new Date();
+  const diffSec = Math.floor((now - d) / 1000);
+  let rel = '';
+  if (diffSec < 60) rel = 'baru saja';
+  else if (diffSec < 3600) rel = `${Math.floor(diffSec / 60)}m lalu`;
+  else if (diffSec < 86400) rel = `${Math.floor(diffSec / 3600)}j lalu`;
+  else rel = `${Math.floor(diffSec / 86400)}h lalu`;
+  return { abs, rel };
+}
 
 async function renderUsersView() {
   const panel = $('#users-panel');
   if (!panel) return;
 
   if (!currentUsersList || currentUsersList.length === 0) {
-    panel.innerHTML = renderLoadingState('Memuat Daftar Pengguna...');
+    panel.innerHTML = renderLoadingState('Memuat Akses Operator Sistem...');
   } else {
     showBgLoadingIndicator(panel);
   }
@@ -3828,71 +3851,300 @@ async function renderUsersView() {
     }
     const data = await res.json();
     currentUsersList = data.users || [];
-
-    const rows = currentUsersList.map(u => {
-      const isSelf = currentUser && currentUser.id === u.id;
-      const roleBadge = u.role === 'admin'
-        ? '<span class="status-badge" style="color:var(--accent);background:rgba(56,189,248,0.15);border:1px solid var(--accent-dim)">⚡ ADMIN</span>'
-        : '<span class="status-badge" style="color:var(--text-muted);background:rgba(156,163,175,0.15);border:1px solid var(--border)">👁️ VIEWER</span>';
-      
-      const pwdBadge = u.must_change_password
-        ? '<span class="status-badge" style="color:var(--warn);background:rgba(251,191,36,0.15)">⚠️ Wajib Ganti</span>'
-        : '<span class="status-badge" style="color:var(--ok);background:rgba(52,211,153,0.15)">Normal</span>';
-
-      const lastLoginStr = u.last_login ? new Date(u.last_login).toLocaleString('id-ID') : 'Belum Pernah';
-      const createdAtStr = u.created_at ? new Date(u.created_at).toLocaleString('id-ID') : '—';
-
-      return `
-        <tr>
-          <td style="font-family:var(--mono); font-weight:600; color:var(--accent)">#${u.id}</td>
-          <td><b>${escapeHtml(u.username)}</b> ${isSelf ? '<span style="font-size:11px; color:var(--accent); margin-left:6px">(Anda)</span>' : ''}</td>
-          <td>${roleBadge}</td>
-          <td>${pwdBadge}</td>
-          <td style="font-family:var(--mono); font-size:12px; color:var(--text-muted)">${lastLoginStr}</td>
-          <td style="font-family:var(--mono); font-size:12px; color:var(--text-muted)">${createdAtStr}</td>
-          <td>
-            <div class="row-actions">
-              <button class="icon-btn" title="Reset Password User" onclick="openResetUserModal(${u.id}, '${escapeHtml(u.username)}')">🔑</button>
-              ${!isSelf ? `<button class="icon-btn danger" title="Hapus User" onclick="deleteUser(${u.id}, '${escapeHtml(u.username)}')">✖</button>` : ''}
-            </div>
-          </td>
-        </tr>
-      `;
-    }).join('');
-
-    panel.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; flex-wrap:wrap; gap:16px">
-        <div>
-          <h2 style="font-size:22px; margin:0 0 6px; color:#fff; font-weight:600">👥 Kelola Pengguna System</h2>
-          <p style="font-size:13px; color:var(--text-muted); margin:0">Total Pengguna Terdaftar: <b>${currentUsersList.length}</b> akun</p>
-        </div>
-        <button class="btn-primary" onclick="openAddUserModal()">＋ Tambah User Baru</button>
-      </div>
-      <div class="device-table-wrap">
-        <table class="device-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Username</th>
-              <th>Role</th>
-              <th>Status Password</th>
-              <th>Login Terakhir</th>
-              <th>Dibuat Pada</th>
-              <th>Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rows || '<tr><td colspan="7" class="no-devices">Belum ada user tambahan.</td></tr>'}
-          </tbody>
-        </table>
-      </div>
-    `;
+    renderUsersDOM();
   } catch (err) {
     console.error('[Users]', err);
-    panel.innerHTML = `<div class="empty-state"><p style="color:var(--alert)">⚠️ Gagal memuat pengguna: ${escapeHtml(err.message)}</p></div>`;
+    panel.innerHTML = `
+      <div class="usr-workbench">
+        <div class="usr-mission-head">
+          <div>
+            <div class="usr-callsign"><span class="usr-live-dot" style="background:#ef4444;box-shadow:0 0 8px #ef4444;"></span>IAM // SECURITY ERROR</div>
+            <h2 class="usr-title">Gagal Memuat Daftar Operator</h2>
+            <p class="usr-desc" style="color:var(--alert)">${escapeHtml(err.message)}</p>
+          </div>
+          <div class="usr-actions">
+            <button class="usr-btn usr-btn-refresh" onclick="refreshUsersView()">Coba Lagi</button>
+          </div>
+        </div>
+      </div>
+    `;
   } finally {
     hideBgLoadingIndicator(panel);
   }
+}
+
+function renderUsersDOM() {
+  const panel = $('#users-panel');
+  if (!panel) return;
+
+  const totalUsers = currentUsersList.length;
+  const adminCount = currentUsersList.filter(u => u.role === 'admin').length;
+  const viewerCount = currentUsersList.filter(u => u.role !== 'admin').length;
+  const pendingResetCount = currentUsersList.filter(u => u.must_change_password).length;
+
+  // Filter users based on state
+  let filtered = currentUsersList.slice();
+  if (userFilterRole === 'admin') {
+    filtered = filtered.filter(u => u.role === 'admin');
+  } else if (userFilterRole === 'viewer') {
+    filtered = filtered.filter(u => u.role !== 'admin');
+  } else if (userFilterRole === 'reset') {
+    filtered = filtered.filter(u => u.must_change_password);
+  }
+
+  if (userSearchTerm) {
+    const q = userSearchTerm.toLowerCase();
+    filtered = filtered.filter(u => 
+      String(u.id).includes(q) || 
+      (u.username && u.username.toLowerCase().includes(q)) ||
+      (u.role && u.role.toLowerCase().includes(q))
+    );
+  }
+
+  // Filter pills
+  const pills = [
+    { id: 'ALL', label: `Semua (${totalUsers})` },
+    { id: 'admin', label: `Administrator (${adminCount})` },
+    { id: 'viewer', label: `Viewer (${viewerCount})` },
+    { id: 'reset', label: `Wajib Ganti Password (${pendingResetCount})`, isWarn: true }
+  ];
+
+  const pillsHtml = pills.map(p => {
+    const isActive = userFilterRole === p.id;
+    const warnClass = p.isWarn ? 'is-amber' : '';
+    const activeClass = isActive ? `active ${warnClass}` : '';
+    return `<button class="usr-pill ${activeClass}" onclick="setUserRoleFilter('${p.id}')">${p.label}</button>`;
+  }).join('');
+
+  // Desktop Table Rows
+  const tableRows = filtered.length > 0 ? filtered.map(u => {
+    const isSelf = currentUser && currentUser.id === u.id;
+    const initial = (u.username || 'U').slice(0, 2).toUpperCase();
+    const isAdm = u.role === 'admin';
+    const roleBadge = isAdm
+      ? `<span class="usr-role-badge is-admin"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>ADMINISTRATOR</span>`
+      : `<span class="usr-role-badge is-viewer"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>VIEWER</span>`;
+
+    const pwdBadge = u.must_change_password
+      ? `<span class="usr-pwd-badge is-warn"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>Wajib Reset</span>`
+      : `<span class="usr-pwd-badge is-normal"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>Normal</span>`;
+
+    const loginTime = formatUserLastLogin(u.last_login);
+    const createdStr = u.created_at ? new Date(u.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+
+    return `
+      <tr>
+        <td><span class="usr-id-tag">#${u.id}</span></td>
+        <td>
+          <div class="usr-name-col">
+            <div class="usr-avatar-monogram ${isAdm ? '' : 'is-viewer'}">${initial}</div>
+            <div>
+              <span class="usr-username">${escapeHtml(u.username)}</span>
+              ${isSelf ? '<span class="usr-self-badge">Sesi Aktif</span>' : ''}
+            </div>
+          </div>
+        </td>
+        <td>${roleBadge}</td>
+        <td>${pwdBadge}</td>
+        <td>
+          <div style="font-family:var(--mono); font-size:11.5px; color:#cbd5e1">${loginTime.abs}</div>
+          <div style="font-size:10px; color:var(--text-muted)">${loginTime.rel}</div>
+        </td>
+        <td style="font-family:var(--mono); font-size:11.5px; color:var(--text-muted)">${createdStr}</td>
+        <td>
+          <div class="usr-table-actions">
+            <button class="usr-action-btn" title="Reset Password Operator" onclick="openResetUserModal(${u.id}, '${escapeHtml(u.username)}')">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+              Reset
+            </button>
+            ${!isSelf ? `
+              <button class="usr-action-btn danger" title="Hapus Operator" onclick="deleteUser(${u.id}, '${escapeHtml(u.username)}')">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                Hapus
+              </button>
+            ` : ''}
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('') : `<tr><td colspan="7" style="text-align:center; padding:32px; color:var(--text-muted);">Tidak ada operator yang sesuai filter.</td></tr>`;
+
+  // Mobile Cards
+  const mobileCards = filtered.length > 0 ? filtered.map(u => {
+    const isSelf = currentUser && currentUser.id === u.id;
+    const initial = (u.username || 'U').slice(0, 2).toUpperCase();
+    const isAdm = u.role === 'admin';
+    const roleBadge = isAdm
+      ? `<span class="usr-role-badge is-admin"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>ADMIN</span>`
+      : `<span class="usr-role-badge is-viewer"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>VIEWER</span>`;
+
+    const pwdBadge = u.must_change_password
+      ? `<span class="usr-pwd-badge is-warn">Wajib Reset</span>`
+      : `<span class="usr-pwd-badge is-normal">Normal</span>`;
+
+    const loginTime = formatUserLastLogin(u.last_login);
+    const createdStr = u.created_at ? new Date(u.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+
+    return `
+      <div class="usr-card">
+        <div class="usr-card-top">
+          <div class="usr-card-user">
+            <div class="usr-avatar-monogram ${isAdm ? '' : 'is-viewer'}">${initial}</div>
+            <div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span class="usr-username">${escapeHtml(u.username)}</span>
+                ${isSelf ? '<span class="usr-self-badge">Sesi Aktif</span>' : ''}
+              </div>
+              <span class="usr-id-tag">ID: #${u.id}</span>
+            </div>
+          </div>
+          <div>${roleBadge}</div>
+        </div>
+        <div class="usr-card-meta">
+          <div class="usr-card-meta-row">
+            <span>Status Keamanan:</span>
+            ${pwdBadge}
+          </div>
+          <div class="usr-card-meta-row">
+            <span>Login Terakhir:</span>
+            <strong>${loginTime.abs} (${loginTime.rel})</strong>
+          </div>
+          <div class="usr-card-meta-row">
+            <span>Dibuat Pada:</span>
+            <strong>${createdStr}</strong>
+          </div>
+        </div>
+        <div class="usr-card-actions">
+          <button class="usr-action-btn" onclick="openResetUserModal(${u.id}, '${escapeHtml(u.username)}')">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+            Reset Password
+          </button>
+          ${!isSelf ? `
+            <button class="usr-action-btn danger" onclick="deleteUser(${u.id}, '${escapeHtml(u.username)}')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              Hapus
+            </button>
+          ` : ''}
+        </div>
+      </div>
+    `;
+  }).join('') : `<div style="text-align:center; padding:32px; color:var(--text-muted); background:rgba(15,23,42,0.8); border:1px dashed var(--border); border-radius:8px;">Tidak ada operator yang sesuai filter.</div>`;
+
+  panel.innerHTML = `
+    <div class="usr-workbench">
+      <!-- Mission Head -->
+      <div class="usr-mission-head">
+        <div>
+          <div class="usr-callsign">
+            <span class="usr-live-dot"></span>
+            IAM // OPERATOR ACCESS & RBAC GOVERNANCE
+          </div>
+          <h2 class="usr-title">Manajemen Akun & Otoritas Operator Sistem</h2>
+          <p class="usr-desc">Pengendalian kredensial operator jaringan pabrik, tingkat otoritas (RBAC), serta pemantauan siklus hidup otentikasi.</p>
+        </div>
+        <div class="usr-actions">
+          <button class="usr-btn usr-btn-refresh" id="usr-refresh-btn" onclick="refreshUsersView()" title="Perbarui Daftar Operator">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            Refresh
+          </button>
+          <button class="usr-btn usr-btn-add" onclick="openAddUserModal()" title="Tambah Operator Baru">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Tambah Operator
+          </button>
+        </div>
+      </div>
+
+      <!-- Telemetry Quad Strip -->
+      <div class="usr-kpi-strip">
+        <div class="usr-kpi-cell">
+          <span class="usr-kpi-lbl">TOTAL OPERATOR</span>
+          <div class="usr-kpi-val">${totalUsers}</div>
+        </div>
+        <div class="usr-kpi-cell">
+          <span class="usr-kpi-lbl">ADMIN RBAC</span>
+          <div class="usr-kpi-val is-cyan">${adminCount}</div>
+        </div>
+        <div class="usr-kpi-cell">
+          <span class="usr-kpi-lbl">VIEWER MONITOR</span>
+          <div class="usr-kpi-val is-emerald">${viewerCount}</div>
+        </div>
+        <div class="usr-kpi-cell">
+          <span class="usr-kpi-lbl">PERLU RESET</span>
+          <div class="usr-kpi-val is-amber">${pendingResetCount}</div>
+        </div>
+      </div>
+
+      <!-- Triage Toolbar -->
+      <div class="usr-toolbar">
+        <div class="usr-pills-row">
+          ${pillsHtml}
+        </div>
+        <div class="usr-search-wrap">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" class="usr-search-input" placeholder="Cari username atau ID operator..." value="${escapeHtml(userSearchTerm)}" oninput="onUserSearchInput(this.value)">
+        </div>
+      </div>
+
+      <!-- Desktop Table View -->
+      <div class="usr-table-wrap">
+        <table class="usr-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Operator / Akun</th>
+              <th>Otoritas (RBAC)</th>
+              <th>Status Keamanan</th>
+              <th>Login Terakhir</th>
+              <th>Dibuat</th>
+              <th>Tindakan</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${tableRows}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Mobile Timeline Cards -->
+      <div class="usr-feed-mobile">
+        ${mobileCards}
+      </div>
+    </div>
+  `;
+}
+
+async function refreshUsersView() {
+  const btn = $('#usr-refresh-btn');
+  if (btn) btn.classList.add('spinning');
+  try {
+    const res = await api.get('/api/auth/users');
+    if (!res || !res.ok) {
+      const errData = res ? await res.json() : {};
+      throw new Error(errData.error || 'Gagal memuat pengguna');
+    }
+    const data = await res.json();
+    currentUsersList = data.users || [];
+    renderUsersDOM();
+    showToast('Daftar operator berhasil diperbarui', 'ok');
+  } catch (err) {
+    showToast('Gagal memuat operator: ' + err.message, 'error');
+  } finally {
+    if (btn) btn.classList.remove('spinning');
+  }
+}
+
+function setUserRoleFilter(role) {
+  if (userFilterRole === role) return;
+  userFilterRole = role;
+  renderUsersDOM();
+}
+
+function onUserSearchInput(val) {
+  userSearchTerm = val.trim();
+  clearTimeout(userSearchDebounceTimer);
+  userSearchDebounceTimer = setTimeout(() => {
+    renderUsersDOM();
+  }, 250);
 }
 
 /* Modal Helpers Add User */
@@ -3925,7 +4177,7 @@ async function submitAddUser() {
       throw new Error(err.error || 'Gagal menambahkan user');
     }
     closeAddUserModal();
-    showToast(`User "${username}" berhasil ditambahkan!`, 'success');
+    showToast(`Operator "${username}" berhasil ditambahkan!`, 'success');
     renderUsersView();
   } catch (err) {
     errEl.textContent = err.message;
@@ -3935,7 +4187,8 @@ async function submitAddUser() {
 /* Modal Helpers Reset User Password */
 function openResetUserModal(id, username) {
   $('#ru-user-id').value = id;
-  $('#ru-modal-title').textContent = `🔑 Reset Password User (${username})`;
+  const titleEl = $('#ru-modal-title');
+  if (titleEl) titleEl.textContent = `Reset Password Operator (${username})`;
   $('#ru-password').value = '';
   $('#ru-must-change').checked = true;
   $('#ru-err').textContent = '';
@@ -3965,7 +4218,7 @@ async function submitResetUserPwd() {
       throw new Error(err.error || 'Gagal mereset password');
     }
     closeResetUserModal();
-    showToast('Password user berhasil direset!', 'success');
+    showToast('Password operator berhasil direset!', 'success');
     renderUsersView();
   } catch (err) {
     errEl.textContent = err.message;
@@ -3974,7 +4227,7 @@ async function submitResetUserPwd() {
 
 /* Delete User */
 async function deleteUser(id, username) {
-  if (!confirm(`Apakah Anda yakin ingin menghapus user "${username}"?`)) return;
+  if (!confirm(`Apakah Anda yakin ingin menghapus operator "${username}"?`)) return;
 
   try {
     const res = await api.delete(`/api/auth/users/${id}`);
@@ -3982,7 +4235,7 @@ async function deleteUser(id, username) {
       const err = res ? await res.json() : {};
       throw new Error(err.error || 'Gagal menghapus user');
     }
-    showToast(`User "${username}" berhasil dihapus`, 'info');
+    showToast(`Operator "${username}" berhasil dihapus`, 'info');
     renderUsersView();
   } catch (err) {
     showToast(err.message, 'error');
@@ -4809,11 +5062,11 @@ function togglePasswordVisibility(id, btn) {
   if (!input) return;
   if (input.type === 'password') {
     input.type = 'text';
-    btn.innerHTML = '🙈';
+    btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
     btn.title = 'Sembunyikan Password';
   } else {
     input.type = 'password';
-    btn.innerHTML = '👁️';
+    btn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
     btn.title = 'Tampilkan Password';
   }
 }
