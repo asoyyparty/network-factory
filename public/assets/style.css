@@ -7010,8 +7010,10 @@ button:focus:not(:focus-visible) { outline: none; }
   display: flex;
   flex-direction: column;
   height: 100%;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   background: transparent;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Mission Header */
@@ -7335,7 +7337,7 @@ button:focus:not(:focus-visible) { outline: none; }
 /* Tree Container & Schematic Nodes */
 .mt-tree-container {
   flex: 1;
-  overflow-y: auto;
+  overflow-y: visible;
   overflow-x: auto;
   padding: 16px 24px 40px;
 }

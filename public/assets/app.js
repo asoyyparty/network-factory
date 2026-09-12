@@ -5389,7 +5389,7 @@ function expandAllTopoNodes() {
   if (mtCollapsedSet === null) mtCollapsedSet = new Set();
   mtCollapsedSet.clear();
   $$('.mt-children').forEach(el => el.classList.remove('collapsed'));
-  $$('.mt-toggle').forEach(el => el.classList.add('expanded'));
+  $$('.mt-toggle:not(.leaf)').forEach(el => el.classList.add('expanded'));
   showToast('Seluruh cabang topologi dibuka', 'ok');
 }
 
@@ -5397,7 +5397,7 @@ function collapseAllTopoNodes() {
   if (mtCollapsedSet === null) mtCollapsedSet = new Set();
   RAW_TOPOLOGY.forEach(n => mtCollapsedSet.add(n.id));
   $$('.mt-children').forEach(el => el.classList.add('collapsed'));
-  $$('.mt-toggle').forEach(el => el.classList.remove('expanded'));
+  $$('.mt-toggle:not(.leaf)').forEach(el => el.classList.remove('expanded'));
   showToast('Seluruh cabang topologi ditutup', 'ok');
 }
 
@@ -5576,12 +5576,14 @@ async function renderManageTopo() {
     let deviceBadgeHtml = '';
     if (isBuilding && node.loc_id) {
       let dCount = 0;
-      if (typeof allLocations !== 'undefined' && allLocations.length) {
-        const matched = allLocations.find(l => l.id == node.loc_id);
-        if (matched) dCount = matched.device_count || 0;
+      if (typeof deviceCount === 'function') {
+        try { dCount = deviceCount(node.loc_id) || 0; } catch(_) {}
+      } else if (typeof state !== 'undefined' && state && state.devices && state.devices[node.loc_id]) {
+        dCount = (state.devices[node.loc_id] || []).length;
       }
-      if (!dCount && state && state.devices) {
-        dCount = state.devices.filter(d => d.loc_id == node.loc_id).length;
+      if (!dCount && typeof allLocations !== 'undefined' && Array.isArray(allLocations)) {
+        const matched = allLocations.find(l => String(l.id) === String(node.loc_id));
+        if (matched && matched.device_count) dCount = matched.device_count;
       }
       deviceBadgeHtml = `<button type="button" class="mt-chip-devices is-clickable" onclick="openDetail('${escapeHtml(node.loc_id)}')" title="Buka Detail Lokasi (${dCount} Perangkat)">${dCount} Perangkat ↗</button>`;
     }
@@ -5669,8 +5671,13 @@ async function renderManageTopo() {
     `;
   }
 
-  rootContainer.innerHTML = roots.map((rootNode, idx) => renderTreeNode(rootNode, 0, [idx === roots.length - 1], idx, roots.length)).join('');
-  applyMtFilters();
+  try {
+    rootContainer.innerHTML = roots.map((rootNode, idx) => renderTreeNode(rootNode, 0, [idx === roots.length - 1], idx, roots.length)).join('');
+    applyMtFilters();
+  } catch(renderErr) {
+    console.error('[ManageTopo] Error rendering tree nodes:', renderErr);
+    rootContainer.innerHTML = `<div class="mt-empty"><span class="mt-empty-text">Terjadi kesalahan saat memuat pohon topologi: ${escapeHtml(renderErr.message)}</span></div>`;
+  }
 }
 
 function toggleMtNode(id, evt) {
