@@ -929,7 +929,7 @@
         <button class="tab-btn" data-tab="audit" id="tab-audit-btn" style="display:none;">📜 Audit Trail</button>
         <button class="tab-btn" data-tab="users" id="tab-users-btn" style="display:none;">👥 Kelola User</button>
         <button class="tab-btn" data-tab="routers" id="tab-routers-btn">📡 Kelola Router & Klien</button>
-        <button class="tab-btn" data-tab="manage-topo">⚙️ Kelola Topologi</button>
+        <button class="tab-btn" data-tab="manage-topo" id="tab-manage-topo-btn">Kelola Topologi</button>
       </div>
       <div class="view">
         <!-- Dashboard Grid (Model 1) -->
@@ -946,28 +946,92 @@
         <div class="view-panel" id="view-detail">
           <div id="detail-panel"></div>
         </div>
-        <!-- Manage Topo Panel -->
+        <!-- Manage Topo Panel (Hallmark Industrial Schematic Workbench) -->
         <div class="view-panel" id="view-manage-topo">
-          <div id="manage-topo-panel" style="display:flex; flex-direction:column; height:100%; overflow:hidden;">
-            <!-- Header Bar -->
-            <div class="mt-header">
-              <div class="mt-header-left">
-                <span class="mt-title">⚙️ Kelola Struktur Topologi</span>
-                <span class="mt-subtitle" id="mt-node-count">Memuat...</span>
-              </div>
-              <div class="mt-header-right">
-                <div class="mt-search-wrap">
-                  <span class="mt-search-icon">🔍</span>
-                  <input type="text" id="mt-search" class="mt-search-input" placeholder="Cari node..." oninput="filterTopoTree(this.value)">
+          <div id="manage-topo-panel" class="mt-workbench">
+            <!-- Industrial Mission Header -->
+            <div class="mt-mission-head">
+              <div class="mt-head-left">
+                <div class="mt-callsign-bar">
+                  <span class="mt-live-dot"></span>
+                  <span class="mt-callsign">TOPOLOGY // HIERARCHICAL ROUTING &amp; SCHEMATIC ARBITRATION</span>
                 </div>
-                <button class="btn ok mt-add-btn" onclick="openNodeForm()">
-                  <span>＋</span> Tambah Node
+                <h2 class="mt-title">Kelola Struktur Topologi &amp; Distribusi Jaringan</h2>
+                <div class="mt-sub-row">
+                  <span class="mt-sub-tag">Arsitektur Jalur Transmisi &amp; Pembagian Zona Pabrik</span>
+                  <span class="mt-node-badge" id="mt-node-count">Memuat...</span>
+                </div>
+              </div>
+              <div class="mt-head-right">
+                <button type="button" class="mt-head-btn is-preview" onclick="switchTab('topo')" title="Lihat Peta Topologi">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+                    <line x1="8" y1="2" x2="8" y2="18"></line>
+                    <line x1="16" y1="6" x2="16" y2="22"></line>
+                  </svg>
+                  <span>Peta Visual</span>
+                </button>
+                <button type="button" class="mt-head-btn is-refresh" onclick="refreshManageTopo()" title="Segarkan Data Topologi">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <polyline points="1 20 1 14 7 14"></polyline>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                  </svg>
+                  <span>Refresh</span>
+                </button>
+                <button type="button" class="mt-head-btn is-primary" onclick="openNodeForm()" title="Tambah Node Baru">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
+                  <span>Tambah Node</span>
                 </button>
               </div>
             </div>
-            <!-- Stats Row -->
-            <div class="mt-stats-row" id="mt-stats-row"></div>
-            <!-- Tree Container -->
+
+            <!-- Telemetry Quad Strip -->
+            <div class="mt-kpi-strip" id="mt-stats-row"></div>
+
+            <!-- Triage & Tree Control Toolbar -->
+            <div class="mt-toolbar">
+              <div class="mt-pills-wrap">
+                <button type="button" class="mt-pill active" data-kind="all" onclick="setMtFilter('all')">
+                  Semua Node <span class="mt-pill-count" id="pill-count-all">0</span>
+                </button>
+                <button type="button" class="mt-pill" data-kind="infra" onclick="setMtFilter('infra')">
+                  Infrastruktur <span class="mt-pill-count" id="pill-count-infra">0</span>
+                </button>
+                <button type="button" class="mt-pill" data-kind="building" onclick="setMtFilter('building')">
+                  Lokasi / Gedung <span class="mt-pill-count" id="pill-count-bldg">0</span>
+                </button>
+              </div>
+              <div class="mt-tree-actions">
+                <button type="button" class="mt-tree-btn" onclick="expandAllTopoNodes()" title="Buka Seluruh Cabang Hirarki">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="7 13 12 18 17 13"></polyline>
+                    <polyline points="7 6 12 11 17 6"></polyline>
+                  </svg>
+                  <span>Buka Semua</span>
+                </button>
+                <button type="button" class="mt-tree-btn" onclick="collapseAllTopoNodes()" title="Tutup Seluruh Cabang Hirarki">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="17 11 12 6 7 11"></polyline>
+                    <polyline points="17 18 12 13 7 18"></polyline>
+                  </svg>
+                  <span>Tutup Semua</span>
+                </button>
+              </div>
+              <div class="mt-search-box">
+                <svg class="mt-search-ico" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input type="text" id="mt-search" class="mt-search-inp" placeholder="Cari node / label / lokasi..." oninput="onMtSearchInput(this.value)">
+                <button type="button" class="mt-search-clear" id="mt-search-clear" onclick="clearMtSearch()" style="display:none;">✕</button>
+              </div>
+            </div>
+
+            <!-- Tree & Dual Presentation Container -->
             <div class="mt-tree-container" id="mt-tree-container">
               <div id="mt-tree-root"></div>
             </div>
@@ -1414,46 +1478,45 @@
 </div>
 
 <!-- ── Main App Script ── -->
-  <!-- Node Modal -->
+  <!-- Node Modal (Hallmark Industrial Standard) -->
   <div class="modal-overlay" id="node-modal">
-    <div class="modal">
-      <div class="modal-header">
-        <h3 id="node-modal-title">Tambah/Edit Node Topologi</h3>
-        <button class="btn icon-btn" onclick="closeNodeForm()">❌</button>
-      </div>
+    <div class="modal" style="max-width:560px; width:95%;">
+      <button class="modal-close" onclick="closeNodeForm()" title="Tutup">✕</button>
+      <div style="font-family:var(--mono); font-size:9.5px; font-weight:700; color:var(--accent); letter-spacing:0.1em; margin-bottom:4px">TOPOLOGY SCHEMA // NODE SPECIFICATION</div>
+      <p class="modal-title" id="node-modal-title" style="margin:0 0 16px; font-size:17px; font-weight:700; color:#fff">Spesifikasi Simpul Topologi</p>
+      
       <form id="node-form" onsubmit="event.preventDefault(); submitNodeForm();">
         <input type="hidden" id="node-id">
         <div class="form-grid">
           <div class="field">
-            <label>ID Node (Kosongkan jika baru)</label>
-            <input type="text" id="node-id-display" disabled>
+            <label>ID Node (Sistem Generated)</label>
+            <input type="text" id="node-id-display" disabled placeholder="Otomatis digenerate...">
           </div>
           <div class="field">
-            <label>Tipe (Kind)</label>
+            <label>Tipe Simpul (Kind)</label>
             <select id="node-kind" required onchange="onNodeKindChange()">
-              <option value="infra">Infrastruktur (Switch/Router dll)</option>
-              <option value="building">Bangunan / Lokasi (Building)</option>
+              <option value="infra">Infrastruktur (Core/FO/Switch/Router)</option>
+              <option value="building">Bangunan / Lokasi (Edge Zone)</option>
             </select>
           </div>
           <div class="field span-2">
-            <label>Nama / Label</label>
-            <input type="text" id="node-label" required>
+            <label>Nama / Label Simpul</label>
+            <input type="text" id="node-label" required placeholder="Contoh: Switch MG Distribusi / Link FO Kantor Baru">
           </div>
           <div class="field span-2" id="node-loc-field" style="display:none;">
-            <label>ID Lokasi (jika Bangunan)</label>
+            <label>Tautkan ke Lokasi / Sub-Kategori Pabrik</label>
             <select id="node-loc-id"></select>
           </div>
           <div class="field span-2">
-            <label>Induk (Parent Node)</label>
+            <label>Induk / Titik Asal Distribusi (Parent Node)</label>
             <select id="node-parent-id">
-              <option value="">-- Root (Tidak Punya Induk) --</option>
-              <!-- Populated dynamically -->
+              <option value="">-- Titik Utama / Root (Tanpa Induk) --</option>
             </select>
           </div>
         </div>
-        <div style="margin-top:20px; display:flex; justify-content:flex-end; gap:10px;">
+        <div class="modal-actions" style="margin-top:24px; display:flex; justify-content:flex-end; gap:10px;">
           <button type="button" class="btn idle" onclick="closeNodeForm()">Batal</button>
-          <button type="submit" class="btn ok">Simpan Node</button>
+          <button type="submit" class="btn ok" id="node-submit-btn">Simpan Spesifikasi</button>
         </div>
       </form>
     </div>
