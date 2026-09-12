@@ -7336,6 +7336,7 @@ button:focus:not(:focus-visible) { outline: none; }
 .mt-tree-container {
   flex: 1;
   overflow-y: auto;
+  overflow-x: auto;
   padding: 16px 24px 40px;
 }
 
@@ -7351,6 +7352,7 @@ button:focus:not(:focus-visible) { outline: none; }
 .mt-node-row {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   border-radius: 6px;
   padding: 4px 10px;
   background: rgba(30, 41, 59, 0.22);
@@ -7363,6 +7365,15 @@ button:focus:not(:focus-visible) { outline: none; }
 .mt-node-row:hover {
   background: rgba(56, 189, 248, 0.06);
   border-color: rgba(56, 189, 248, 0.22);
+}
+
+/* Main Left Group in Node Row */
+.mt-node-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
 }
 
 /* Depth Color Accents on left border */
@@ -7390,7 +7401,7 @@ button:focus:not(:focus-visible) { outline: none; }
 }
 
 .mt-indent-line {
-  width: 22px;
+  width: 16px;
   position: relative;
   flex-shrink: 0;
   display: inline-block;
@@ -7400,7 +7411,7 @@ button:focus:not(:focus-visible) { outline: none; }
 .mt-indent-line::before {
   content: '';
   position: absolute;
-  left: 10px;
+  left: 7px;
   top: 0;
   bottom: 0;
   width: 1px;
@@ -7412,17 +7423,17 @@ button:focus:not(:focus-visible) { outline: none; }
 .mt-indent-line::after {
   content: '';
   position: absolute;
-  left: 10px;
+  left: 7px;
   top: 50%;
-  width: 11px;
+  width: 8px;
   height: 1px;
   background: rgba(148, 163, 184, 0.25);
 }
 
 /* Toggle Arrow Button */
 .mt-toggle {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -7433,6 +7444,7 @@ button:focus:not(:focus-visible) { outline: none; }
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
   transition: all 0.15s ease;
+  padding: 0;
 }
 .mt-toggle:hover {
   background: rgba(56, 189, 248, 0.15);
@@ -7450,9 +7462,9 @@ button:focus:not(:focus-visible) { outline: none; }
 
 /* Node Icon Badge */
 .mt-node-ico-wrap {
-  width: 26px;
-  height: 26px;
-  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -7476,9 +7488,9 @@ button:focus:not(:focus-visible) { outline: none; }
 
 /* Micro-Chip Badges */
 .mt-badge-chip {
-  padding: 2px 7px;
+  padding: 2px 6px;
   border-radius: 4px;
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 700;
   font-family: var(--mono);
   text-transform: uppercase;
@@ -7518,6 +7530,7 @@ button:focus:not(:focus-visible) { outline: none; }
   gap: 8px;
   flex: 1;
   min-width: 0;
+  overflow: hidden;
 }
 
 .mt-node-label {
@@ -7531,7 +7544,7 @@ button:focus:not(:focus-visible) { outline: none; }
 .mt-node-row[data-depth="0"] .mt-node-label {
   color: #38bdf8;
   font-weight: 700;
-  font-size: 14.5px;
+  font-size: 14px;
 }
 
 .mt-node-label mark {
@@ -7546,7 +7559,7 @@ button:focus:not(:focus-visible) { outline: none; }
   font-size: 10px;
   background: rgba(100, 116, 139, 0.18);
   color: #94a3b8;
-  padding: 1px 7px;
+  padding: 1px 6px;
   border-radius: 10px;
   font-weight: 600;
   font-family: var(--mono);
@@ -7555,12 +7568,32 @@ button:focus:not(:focus-visible) { outline: none; }
 
 .mt-chip-devices {
   font-family: var(--mono);
-  font-size: 10.5px;
-  padding: 2px 7px;
+  font-size: 10px;
+  padding: 2px 6px;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.05);
   color: #cbd5e1;
   border: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+  text-decoration: none;
+}
+.mt-chip-devices.is-clickable {
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.mt-chip-devices.is-clickable:hover {
+  background: rgba(56, 189, 248, 0.15);
+  border-color: rgba(56, 189, 248, 0.35);
+  color: #38bdf8;
+}
+
+.mt-depth-pill {
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #64748b;
   flex-shrink: 0;
 }
 
@@ -7576,8 +7609,8 @@ button:focus:not(:focus-visible) { outline: none; }
 .mt-act-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
+  gap: 3px;
+  padding: 3px 7px;
   border-radius: 5px;
   font-size: 11px;
   font-weight: 600;
@@ -7585,14 +7618,23 @@ button:focus:not(:focus-visible) { outline: none; }
   transition: all 0.12s ease;
   white-space: nowrap;
   font-family: var(--sans);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #94a3b8;
 }
+.mt-act-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
 .mt-act-btn.is-add {
-  background: rgba(56, 189, 248, 0.1);
+  background: rgba(56, 189, 248, 0.08);
   color: #38bdf8;
-  border: 1px solid rgba(56, 189, 248, 0.25);
+  border: 1px solid rgba(56, 189, 248, 0.22);
 }
 .mt-act-btn.is-add:hover {
   background: rgba(56, 189, 248, 0.22);
+  color: #fff;
 }
 
 .mt-act-btn.is-edit {
@@ -7606,12 +7648,23 @@ button:focus:not(:focus-visible) { outline: none; }
 }
 
 .mt-act-btn.is-del {
-  background: rgba(244, 63, 94, 0.1);
+  background: rgba(244, 63, 94, 0.08);
   color: #fb7185;
-  border: 1px solid rgba(244, 63, 94, 0.22);
+  border: 1px solid rgba(244, 63, 94, 0.2);
 }
 .mt-act-btn.is-del:hover {
   background: rgba(244, 63, 94, 0.22);
+}
+
+.mt-act-btn.is-move {
+  padding: 3px 5px;
+  color: #64748b;
+  border-color: rgba(255, 255, 255, 0.05);
+}
+.mt-act-btn.is-move:hover {
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.25);
+  background: rgba(56, 189, 248, 0.08);
 }
 
 /* Children block */
@@ -7711,28 +7764,31 @@ button:focus:not(:focus-visible) { outline: none; }
   }
 
   .mt-tree-container {
-    padding: 12px 12px 40px;
+    padding: 10px 8px 40px;
   }
 
-  /* Clamped Indentation for mobile screen */
+  /* Compact indentation on mobile */
   .mt-indent-line {
-    width: 12px;
+    width: 8px;
   }
 
   .mt-node-row {
+    flex-direction: column;
+    align-items: stretch;
     padding: 8px 10px;
-    flex-wrap: wrap;
-    min-height: 48px;
+    gap: 8px;
+    min-height: auto;
   }
 
-  .mt-node-info {
-    width: calc(100% - 70px);
+  .mt-node-main {
+    width: 100%;
+    min-width: 0;
   }
 
   .mt-node-actions {
     width: 100%;
     justify-content: flex-end;
-    margin-top: 4px;
+    margin-top: 0;
     padding-top: 6px;
     border-top: 1px solid rgba(255, 255, 255, 0.05);
     gap: 6px;
@@ -7740,10 +7796,11 @@ button:focus:not(:focus-visible) { outline: none; }
 
   .mt-act-btn {
     flex: 1;
-    min-height: 40px;
+    min-height: 38px;
     justify-content: center;
     font-size: 11.5px;
   }
 }
+
 
 

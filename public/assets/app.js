@@ -211,12 +211,18 @@ async function loadTopology() {
   
   const nodeMap = {};
   RAW_TOPOLOGY.forEach(n => {
+    let extra = [];
+    if (n.extra_parents) {
+      try {
+        extra = typeof n.extra_parents === 'string' ? JSON.parse(n.extra_parents) : n.extra_parents;
+      } catch(e) { extra = []; }
+    }
     nodeMap[n.id] = {
       id: n.id,
       kind: n.kind,
       label: n.label,
       locId: n.loc_id,
-      extraParents: n.extra_parents || [],
+      extraParents: extra,
       children: []
     };
   });
@@ -5333,7 +5339,7 @@ if (mobileMenuBtn && mobileOverlay && sidebar) {
 }
 
 /* ── 10.15 MANAGE TOPOLOGY — Hallmark Industrial Schematic Workbench ───────── */
-let mtCollapsedSet = new Set();
+let mtCollapsedSet = null; // null triggers default depth-based initialization
 let mtCurrentFilter = 'all'; // 'all' | 'infra' | 'building'
 let mtSearchQuery = '';
 let mtDebounceTimer = null;
@@ -5380,6 +5386,7 @@ function clearMtSearch() {
 }
 
 function expandAllTopoNodes() {
+  if (mtCollapsedSet === null) mtCollapsedSet = new Set();
   mtCollapsedSet.clear();
   $$('.mt-children').forEach(el => el.classList.remove('collapsed'));
   $$('.mt-toggle').forEach(el => el.classList.add('expanded'));
@@ -5387,6 +5394,7 @@ function expandAllTopoNodes() {
 }
 
 function collapseAllTopoNodes() {
+  if (mtCollapsedSet === null) mtCollapsedSet = new Set();
   RAW_TOPOLOGY.forEach(n => mtCollapsedSet.add(n.id));
   $$('.mt-children').forEach(el => el.classList.add('collapsed'));
   $$('.mt-toggle').forEach(el => el.classList.remove('expanded'));
@@ -5400,10 +5408,31 @@ function highlightMtMatch(text, query) {
   return escaped.replace(regex, '<mark>$1</mark>');
 }
 
+function getDescendantIds(nodeId) {
+  const set = new Set();
+  function collect(id) {
+    set.add(id);
+    const children = RAW_TOPOLOGY.filter(n => n.parent_id === id);
+    children.forEach(c => collect(c.id));
+  }
+  if (nodeId) collect(nodeId);
+  return set;
+}
+
 async function renderManageTopo() {
   const rootContainer = $('#mt-tree-root');
   if (!rootContainer) return;
-  
+
+  // Pastikan data topologi sudah dimuat
+  if (!RAW_TOPOLOGY || !RAW_TOPOLOGY.length) {
+    try {
+      await loadTopology();
+    } catch(e) {
+      console.warn('[ManageTopo] Gagal memuat topologi:', e.message);
+    }
+  }
+
+  const isAdmin = currentUser && currentUser.role === 'admin';
   const totalNodes = RAW_TOPOLOGY.length;
   const infraCount = RAW_TOPOLOGY.filter(n => n.kind === 'infra').length;
   const bldgCount  = RAW_TOPOLOGY.filter(n => n.kind === 'building').length;
@@ -5457,7 +5486,7 @@ async function renderManageTopo() {
           <line x1="12" y1="16" x2="12.01" y2="16"></line>
         </svg>
         <span class="mt-empty-text">Belum ada simpul topologi yang terdaftar dalam sistem.</span>
-        <button type="button" class="btn ok" onclick="openNodeForm()">＋ Tambah Simpul Pertama</button>
+        ${isAdmin ? `<button type="button" class="btn ok" onclick="openNodeForm()">＋ Tambah Simpul Pertama</button>` : ''}
       </div>
     `;
     return;
@@ -5477,16 +5506,28 @@ async function renderManageTopo() {
     }
   });
 
-  function renderTreeNode(node, depth = 0, isLastArray = []) {
-    const hasKids = node.children.length > 0;
-    const isCollapsed = mtCollapsedSet.has(node.id);
+  // Default depth-based collapse on initial render
+  if (mtCollapsedSet === null) {
+    mtCollapsedSet = new Set();
+    function initCollDepth(n, depth = 0) {
+      if (depth >= 2 && n.children && n.children.length > 0) {
+        mtCollapsedSet.add(n.id);
+      }
+      (n.children || []).forEach(c => initCollDepth(c, depth + 1));
+    }
+    roots.forEach(r => initCollDepth(r, 0));
+  }
+
+  function renderTreeNode(node, depth = 0, isLastArray = [], siblingIndex = 0, siblingCount = 1) {
+    const hasKids = node.children && node.children.length > 0;
+    const isCollapsed = mtCollapsedSet ? mtCollapsedSet.has(node.id) : false;
     const labelLower = (node.label || '').toLowerCase();
     const isFo = labelLower.includes('fo') || labelLower.includes('fiber');
-    const isSwitch = labelLower.includes('switch') || labelLower.includes('sw-');
+    const isSwitch = labelLower.includes('switch') || labelLower.includes('sw-') || labelLower.includes('vlan');
     const isBuilding = node.kind === 'building';
     const isRoot = !node.parent_id;
 
-    // Determine semantic badge chip
+    // Semantic badge chip
     let chipHtml = '';
     if (isRoot) {
       chipHtml = '<span class="mt-badge-chip is-root">ROOT GATEWAY</span>';
@@ -5500,7 +5541,7 @@ async function renderManageTopo() {
       chipHtml = '<span class="mt-badge-chip is-infra">INFRA</span>';
     }
 
-    // Determine icon wrap
+    // Icon wrap
     let iconWrapHtml = '';
     if (isBuilding) {
       iconWrapHtml = `
@@ -5531,7 +5572,7 @@ async function renderManageTopo() {
       `;
     }
 
-    // Device counter for building
+    // Device counter chip (clickable link to openDetail)
     let deviceBadgeHtml = '';
     if (isBuilding && node.loc_id) {
       let dCount = 0;
@@ -5542,8 +5583,11 @@ async function renderManageTopo() {
       if (!dCount && state && state.devices) {
         dCount = state.devices.filter(d => d.loc_id == node.loc_id).length;
       }
-      deviceBadgeHtml = `<span class="mt-chip-devices" title="${dCount} Perangkat aktif terdaftar di ruangan ini">${dCount} Perangkat</span>`;
+      deviceBadgeHtml = `<button type="button" class="mt-chip-devices is-clickable" onclick="openDetail('${escapeHtml(node.loc_id)}')" title="Buka Detail Lokasi (${dCount} Perangkat)">${dCount} Perangkat ↗</button>`;
     }
+
+    // Depth pill for deep nodes
+    let depthPillHtml = depth >= 3 ? `<span class="mt-depth-pill" title="Kedalaman Level ${depth}">L${depth}</span>` : '';
 
     // CAD Tree Indent Spacers
     let indentHtml = '<span class="mt-indent-sp">';
@@ -5553,68 +5597,92 @@ async function renderManageTopo() {
     }
     indentHtml += '</span>';
 
+    // Move order buttons for admin
+    let reorderHtml = '';
+    if (isAdmin && siblingCount > 1) {
+      const canUp = siblingIndex > 0;
+      const canDown = siblingIndex < siblingCount - 1;
+      reorderHtml = `
+        ${canUp ? `<button type="button" class="mt-act-btn is-move" title="Pindahkan ke Atas" onclick="moveTopoNodeOrder('${escapeHtml(node.id)}', 'up')">▲</button>` : ''}
+        ${canDown ? `<button type="button" class="mt-act-btn is-move" title="Pindahkan ke Bawah" onclick="moveTopoNodeOrder('${escapeHtml(node.id)}', 'down')">▼</button>` : ''}
+      `;
+    }
+
+    // Actions
+    let actionsHtml = '';
+    if (isAdmin) {
+      actionsHtml = `
+        <div class="mt-node-actions">
+          ${reorderHtml}
+          <button type="button" class="mt-act-btn is-add" title="Tambah Sub-node" onclick="openNodeForm(null, '${escapeHtml(node.id)}')">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            <span>Anak</span>
+          </button>
+          <button type="button" class="mt-act-btn is-edit" title="Ubah Spesifikasi Node" onclick="openNodeForm('${escapeHtml(node.id)}')">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+            <span>Ubah</span>
+          </button>
+          <button type="button" class="mt-act-btn is-del" title="Hapus Node" onclick="deleteNode('${escapeHtml(node.id)}')">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            <span>Hapus</span>
+          </button>
+        </div>
+      `;
+    }
+
     return `
       <div class="mt-node" data-id="${escapeHtml(node.id)}" data-kind="${escapeHtml(node.kind)}" data-label="${escapeHtml(labelLower)}">
         <div class="mt-node-row" data-depth="${Math.min(depth, 4)}">
-          ${indentHtml}
-          <button type="button" class="mt-toggle ${hasKids ? (isCollapsed ? '' : 'expanded') : 'leaf'}" onclick="toggleMtNode('${escapeHtml(node.id)}', event)" title="${hasKids ? (isCollapsed ? 'Buka Sub-node' : 'Tutup Sub-node') : ''}">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="9 18 15 12 9 6"></polyline>
-            </svg>
-          </button>
-          ${iconWrapHtml}
-          ${chipHtml}
-          <div class="mt-node-info">
-            <span class="mt-node-label" title="${escapeHtml(node.label)}">${escapeHtml(node.label)}</span>
-            ${hasKids ? `<span class="mt-child-count">${node.children.length} anak</span>` : ''}
-            ${deviceBadgeHtml}
+          <div class="mt-node-main">
+            ${indentHtml}
+            <button type="button" class="mt-toggle ${hasKids ? (isCollapsed ? '' : 'expanded') : 'leaf'}" onclick="toggleMtNode('${escapeHtml(node.id)}', event)" title="${hasKids ? (isCollapsed ? 'Buka Sub-node' : 'Tutup Sub-node') : ''}">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+            ${iconWrapHtml}
+            ${chipHtml}
+            <div class="mt-node-info">
+              <span class="mt-node-label" title="${escapeHtml(node.label)}">${escapeHtml(node.label)}</span>
+              ${depthPillHtml}
+              ${hasKids ? `<span class="mt-child-count">${node.children.length} anak</span>` : ''}
+              ${deviceBadgeHtml}
+            </div>
           </div>
-          <div class="mt-node-actions">
-            <button type="button" class="mt-act-btn is-add" title="Tambah Sub-node" onclick="openNodeForm(null, '${escapeHtml(node.id)}')">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-              <span>Anak</span>
-            </button>
-            <button type="button" class="mt-act-btn is-edit" title="Ubah Spesifikasi Node" onclick="openNodeForm('${escapeHtml(node.id)}')">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-              </svg>
-              <span>Ubah</span>
-            </button>
-            <button type="button" class="mt-act-btn is-del" title="Hapus Node" onclick="deleteNode('${escapeHtml(node.id)}')">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-              </svg>
-              <span>Hapus</span>
-            </button>
-          </div>
+          ${actionsHtml}
         </div>
         ${hasKids ? `
           <div class="mt-children ${isCollapsed ? 'collapsed' : ''}" id="mt-children-${escapeHtml(node.id)}">
-            ${node.children.map((child, idx) => renderTreeNode(child, depth + 1, [...isLastArray, idx === node.children.length - 1])).join('')}
+            ${node.children.map((child, idx) => renderTreeNode(child, depth + 1, [...isLastArray, idx === node.children.length - 1], idx, node.children.length)).join('')}
           </div>
         ` : ''}
       </div>
     `;
   }
 
-  rootContainer.innerHTML = roots.map((rootNode, idx) => renderTreeNode(rootNode, 0, [idx === roots.length - 1])).join('');
+  rootContainer.innerHTML = roots.map((rootNode, idx) => renderTreeNode(rootNode, 0, [idx === roots.length - 1], idx, roots.length)).join('');
   applyMtFilters();
 }
 
 function toggleMtNode(id, evt) {
   if (evt) evt.stopPropagation();
+  if (mtCollapsedSet === null) mtCollapsedSet = new Set();
   if (mtCollapsedSet.has(id)) {
     mtCollapsedSet.delete(id);
   } else {
     mtCollapsedSet.add(id);
   }
-  const childEl = $(`#mt-children-${id}`);
-  const nodeEl = $(`.mt-node[data-id="${id}"]`);
+  const childEl = document.getElementById(`mt-children-${id}`);
+  const nodeEl = document.querySelector(`.mt-node[data-id="${CSS.escape(id)}"]`);
   const toggleEl = nodeEl ? nodeEl.querySelector('.mt-toggle') : null;
   if (childEl) childEl.classList.toggle('collapsed');
   if (toggleEl) toggleEl.classList.toggle('expanded');
@@ -5684,11 +5752,11 @@ function openNodeForm(id = null, parentId = null) {
   const modal = $('#node-modal');
   if (!modal) return;
 
-  // Build structured indented parent select options
+  // Build structured indented parent select options (protecting against circular deadlock)
+  const forbiddenIds = getDescendantIds(id);
   const parentSelect = $('#node-parent-id');
   let parentOptions = '<option value="">-- Titik Utama / Root (Tanpa Induk) --</option>';
 
-  // Helper to build recursive options
   const map = {};
   const roots = [];
   RAW_TOPOLOGY.forEach(n => { map[n.id] = { ...n, children: [] }; });
@@ -5701,7 +5769,7 @@ function openNodeForm(id = null, parentId = null) {
   });
 
   function buildParentOptions(node, depth = 0) {
-    if (node.id === id) return ''; // cannot be parent of itself
+    if (forbiddenIds.has(node.id)) return ''; // Skip self and all descendants to prevent deadlocks
     const indent = depth === 0 ? '' : '│   '.repeat(depth - 1) + '├── ';
     let opt = `<option value="${escapeHtml(node.id)}">${indent}${escapeHtml(node.label)} [${node.kind.toUpperCase()}]</option>`;
     if (node.children && node.children.length) {
@@ -5784,6 +5852,18 @@ async function submitNodeForm() {
     renderManageTopo();
   } catch(e) {
     showToast(e.message, 'error');
+  }
+}
+
+async function moveTopoNodeOrder(id, direction) {
+  try {
+    const res = await api.request('POST', `/api/topology/${id}/move`, { direction });
+    if (!res.ok) throw new Error(await res.text());
+    await loadTopology();
+    renderTopology();
+    renderManageTopo();
+  } catch(e) {
+    showToast('Gagal memindahkan urutan node: ' + e.message, 'error');
   }
 }
 
