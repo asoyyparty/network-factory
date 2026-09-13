@@ -1480,43 +1480,45 @@
 <!-- ── Main App Script ── -->
   <!-- Node Modal (Hallmark Industrial Standard) -->
   <div class="modal-overlay" id="node-modal">
-    <div class="modal" style="max-width:560px; width:95%;">
+    <div class="modal">
       <button class="modal-close" onclick="closeNodeForm()" title="Tutup">✕</button>
-      <div style="font-family:var(--mono); font-size:9.5px; font-weight:700; color:var(--accent); letter-spacing:0.1em; margin-bottom:4px">TOPOLOGY SCHEMA // NODE SPECIFICATION</div>
-      <p class="modal-title" id="node-modal-title" style="margin:0 0 16px; font-size:17px; font-weight:700; color:#fff">Spesifikasi Simpul Topologi</p>
+      <div class="nm-head">
+        <div class="nm-callsign-bar">
+          <span class="nm-callsign">TOPOLOGY SCHEMA // NODE SPECIFICATION</span>
+          <span class="nm-id-chip" id="nm-id-badge">ID: node_3</span>
+        </div>
+        <p class="modal-title" id="node-modal-title" style="margin:0; font-size:16.5px; font-weight:700; color:#fff">Spesifikasi Simpul Topologi</p>
+      </div>
       
       <form id="node-form" onsubmit="event.preventDefault(); submitNodeForm();">
         <input type="hidden" id="node-id">
-        <div class="form-grid">
-          <div class="field">
-            <label>ID Node (Sistem Generated)</label>
-            <input type="text" id="node-id-display" disabled placeholder="Otomatis digenerate...">
+        <input type="hidden" id="node-id-display">
+        <div class="nm-form-layout">
+          <div class="nm-field">
+            <label for="node-label">Nama / Label Simpul</label>
+            <input type="text" id="node-label" required placeholder="Contoh: Switch MG Distribusi / Link FO Kantor Baru" autocomplete="off">
           </div>
-          <div class="field">
-            <label>Tipe Simpul (Kind)</label>
+          <div class="nm-field">
+            <label for="node-kind">Tipe Simpul (Klasifikasi)</label>
             <select id="node-kind" required onchange="onNodeKindChange()">
-              <option value="infra">Infrastruktur (Core/FO/Switch/Router)</option>
-              <option value="building">Bangunan / Lokasi (Edge Zone)</option>
+              <option value="infra">Infrastruktur (Core / FO Backbone / Switch / Router)</option>
+              <option value="building">Lokasi Gedung / Ruangan Fisik (Edge Zone Pabrik)</option>
             </select>
           </div>
-          <div class="field span-2">
-            <label>Nama / Label Simpul</label>
-            <input type="text" id="node-label" required placeholder="Contoh: Switch MG Distribusi / Link FO Kantor Baru">
-          </div>
-          <div class="field span-2" id="node-loc-field" style="display:none;">
-            <label>Tautkan ke Lokasi / Sub-Kategori Pabrik</label>
+          <div class="nm-field" id="node-loc-field" style="display:none;">
+            <label for="node-loc-id">Tautkan ke Ruangan / Lokasi Gedung</label>
             <select id="node-loc-id"></select>
           </div>
-          <div class="field span-2">
-            <label>Induk / Titik Asal Distribusi (Parent Node)</label>
+          <div class="nm-field">
+            <label for="node-parent-id">Induk / Titik Asal Distribusi (Parent Node)</label>
             <select id="node-parent-id">
               <option value="">-- Titik Utama / Root (Tanpa Induk) --</option>
             </select>
           </div>
         </div>
-        <div class="modal-actions" style="margin-top:24px; display:flex; justify-content:flex-end; gap:10px;">
-          <button type="button" class="btn idle" onclick="closeNodeForm()">Batal</button>
-          <button type="submit" class="btn ok" id="node-submit-btn">Simpan Spesifikasi</button>
+        <div class="nm-actions">
+          <button type="button" class="btn-secondary" onclick="closeNodeForm()">Batal</button>
+          <button type="submit" class="btn-primary" id="node-submit-btn">Simpan Spesifikasi</button>
         </div>
       </form>
     </div>

@@ -5752,7 +5752,7 @@ function applyMtFilters() {
 function onNodeKindChange() {
   const kind = $('#node-kind').value;
   const locField = $('#node-loc-field');
-  if (locField) locField.style.display = kind === 'building' ? 'block' : 'none';
+  if (locField) locField.style.display = kind === 'building' ? 'flex' : 'none';
 }
 
 function openNodeForm(id = null, parentId = null) {
@@ -5790,7 +5790,7 @@ function openNodeForm(id = null, parentId = null) {
   // Build Location Select
   const locSelect = $('#node-loc-id');
   if (locSelect) {
-    let locOptions = '<option value="">-- Pilih Lokasi / Sub-Kategori --</option>';
+    let locOptions = '<option value="">-- Pilih Ruangan / Lokasi Gedung --</option>';
     const locList = (typeof allLocations !== 'undefined' && allLocations.length) ? allLocations : state.locations;
     locOptions += locList.map(l => `<option value="${escapeHtml(l.id)}">${escapeHtml(l.nama)}</option>`).join('');
     locSelect.innerHTML = locOptions;
@@ -5798,14 +5798,16 @@ function openNodeForm(id = null, parentId = null) {
 
   const titleEl = $('#node-modal-title');
   const submitBtn = $('#node-submit-btn');
+  const idBadge = $('#nm-id-badge');
 
   if (id) {
     const node = RAW_TOPOLOGY.find(n => n.id === id);
     if (node) {
-      if (titleEl) titleEl.textContent = 'Spesifikasi Node: ' + node.label;
+      if (titleEl) titleEl.textContent = 'Spesifikasi Simpul: ' + node.label;
       if (submitBtn) submitBtn.textContent = 'Perbarui Spesifikasi';
       $('#node-id').value = node.id;
-      $('#node-id-display').value = node.id;
+      if ($('#node-id-display')) $('#node-id-display').value = node.id;
+      if (idBadge) idBadge.textContent = 'ID: ' + node.id;
       $('#node-label').value = node.label;
       $('#node-kind').value = node.kind;
       $('#node-parent-id').value = node.parent_id || '';
@@ -5817,7 +5819,8 @@ function openNodeForm(id = null, parentId = null) {
     if (submitBtn) submitBtn.textContent = 'Simpan Spesifikasi';
     $('#node-form').reset();
     $('#node-id').value = '';
-    $('#node-id-display').value = '(Otomatis digenerate)';
+    if ($('#node-id-display')) $('#node-id-display').value = '(Otomatis digenerate)';
+    if (idBadge) idBadge.textContent = 'ID: OTOMATIS';
     if (parentId) $('#node-parent-id').value = parentId;
   }
 
