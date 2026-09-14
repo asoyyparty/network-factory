@@ -1,15 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db/database');
+const { logAudit } = require('../services/auditLog');
 
-async function logTopologyAudit(req, action, detail) {
+async function logTopologyAudit(req, action, detail, target = '') {
   try {
     const username = (req.user && req.user.username) ? req.user.username : 'system';
-    const ip = req.ip || req.connection.remoteAddress || '127.0.0.1';
-    await db.query(
-      'INSERT INTO audit_logs (username, action_category, action_detail, ip_address, status) VALUES (?, ?, ?, ?, ?)',
-      [username, 'TOPOLOGY', `${action}: ${detail}`, ip, 'SUCCESS']
-    );
+    await logAudit(username, `Topology: ${action}`, target || 'Topology Tree', detail);
   } catch (e) {
     console.warn('[Audit] Gagal log audit topologi:', e.message);
   }
@@ -36,7 +33,7 @@ router.post('/', async (req, res) => {
       'INSERT INTO topology_nodes (id, label, kind, loc_id, parent_id, extra_parents, order_idx) VALUES (?, ?, ?, ?, ?, ?, 0)',
       [newId, label, kind, loc_id || null, parent_id || null, extra_parents ? JSON.stringify(extra_parents) : null]
     );
-    await logTopologyAudit(req, 'TAMBAH_NODE', `Node '${label}' (${kind}) ditambahkan sebagai anak dari ${parent_id || 'Root'}`);
+    await logTopologyAudit(req, 'TAMBAH_NODE', `Node '${label}' (${kind}) ditambahkan sebagai anak dari ${parent_id || 'Root'}`, label);
     res.json({ message: 'Node berhasil ditambahkan', id: newId });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -52,7 +49,7 @@ router.put('/:id', async (req, res) => {
       'UPDATE topology_nodes SET label=?, kind=?, loc_id=?, parent_id=?, extra_parents=?, order_idx=COALESCE(?, order_idx) WHERE id=?',
       [label, kind, loc_id || null, parent_id || null, extra_parents ? JSON.stringify(extra_parents) : null, order_idx !== undefined ? order_idx : null, req.params.id]
     );
-    await logTopologyAudit(req, 'UBAH_NODE', `Node '${label}' [${req.params.id}] diperbarui`);
+    await logTopologyAudit(req, 'UBAH_NODE', `Node '${label}' [${req.params.id}] diperbarui`, label);
     res.json({ message: 'Node berhasil diupdate' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -85,7 +82,7 @@ router.post('/:id/move', async (req, res) => {
       const newPrev = curOrder === prevOrder ? curOrder + 1 : curOrder;
       await db.query('UPDATE topology_nodes SET order_idx = ? WHERE id = ?', [newCur, node.id]);
       await db.query('UPDATE topology_nodes SET order_idx = ? WHERE id = ?', [newPrev, prev.id]);
-      await logTopologyAudit(req, 'URUTKAN_NODE', `Pindahkan '${node.label}' ke atas`);
+      await logTopologyAudit(req, 'URUTKAN_NODE', `Pindahkan '${node.label}' ke atas`, node.label);
     } else if (direction === 'down' && idx < siblings.length - 1) {
       const next = siblings[idx + 1];
       const curOrder = node.order_idx;
@@ -94,7 +91,7 @@ router.post('/:id/move', async (req, res) => {
       const newNext = curOrder === nextOrder ? nextOrder - 1 : curOrder;
       await db.query('UPDATE topology_nodes SET order_idx = ? WHERE id = ?', [newCur, node.id]);
       await db.query('UPDATE topology_nodes SET order_idx = ? WHERE id = ?', [newNext, next.id]);
-      await logTopologyAudit(req, 'URUTKAN_NODE', `Pindahkan '${node.label}' ke bawah`);
+      await logTopologyAudit(req, 'URUTKAN_NODE', `Pindahkan '${node.label}' ke bawah`, node.label);
     }
 
     res.json({ message: 'Urutan berhasil dipindahkan' });
@@ -111,7 +108,7 @@ router.delete('/:id', async (req, res) => {
 
     await db.query('UPDATE topology_nodes SET parent_id = NULL WHERE parent_id = ?', [req.params.id]);
     await db.query('DELETE FROM topology_nodes WHERE id = ?', [req.params.id]);
-    await logTopologyAudit(req, 'HAPUS_NODE', `Node '${label}' [${req.params.id}] dihapus`);
+    await logTopologyAudit(req, 'HAPUS_NODE', `Node '${label}' [${req.params.id}] dihapus`, label);
     res.json({ message: 'Node berhasil dihapus' });
   } catch (err) {
     res.status(500).json({ error: err.message });

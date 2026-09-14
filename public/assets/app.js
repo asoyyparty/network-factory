@@ -411,6 +411,7 @@ function renderUserInfo() {
   if (!u) return;
   const el = $('#user-badge');
   if (!el) return;
+  const isAdmin = u.role === 'admin';
   el.innerHTML = `
     <div class="u-avatar-wrap">
       <span class="u-role">${u.role.toUpperCase()}</span>
@@ -423,6 +424,20 @@ function renderUserInfo() {
         <div class="um-sub">ROLE // ${u.role.toUpperCase()}</div>
       </div>
       <hr>
+      <button class="user-menu-item" onclick="exportAllDevicesExcel(); closeUserMenu()" role="menuitem">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>Export Inventaris (.xlsx)</span>
+      </button>
+      ${isAdmin ? `
+      <button class="user-menu-item" onclick="testAlertNotification(); closeUserMenu()" role="menuitem">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+        <span>Uji Notifikasi (Test Alert)</span>
+      </button>
+      <button class="user-menu-item" onclick="openDatabaseModal(); closeUserMenu()" role="menuitem">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+        <span>Backup & Restore Database</span>
+      </button>
+      ` : ''}
       <button class="user-menu-item" onclick="openChangePwdModal(); closeUserMenu()" role="menuitem">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-1.5 1.5L14 9m0 0l-1.5 1.5M14 9l2.5 2.5m-4 1.5l-3 3H5v-3l7-7 2.5 2.5z"/></svg>
         <span>Ganti Password</span>
@@ -3581,6 +3596,201 @@ function exportSlaExcel() {
   }
 }
 
+/* ── EXPORT INVENTARIS PERANGKAT KE EXCEL (HALLMARK TOOL) ── */
+function exportAllDevicesExcel() {
+  const allDevices = [];
+  const locMap = new Map();
+  (state.locations || []).forEach(l => locMap.set(l.id, l));
+
+  const zoneMap = new Map();
+  (state.zones || []).forEach(z => zoneMap.set(z.zone_key, z.label));
+
+  Object.keys(state.devices || {}).forEach(locId => {
+    const list = state.devices[locId] || [];
+    list.forEach(d => allDevices.push(d));
+  });
+
+  if (allDevices.length === 0) {
+    showToast('Tidak ada data perangkat untuk diekspor.', 'error');
+    return;
+  }
+
+  allDevices.sort((a, b) => (a.loc_id || '').localeCompare(b.loc_id || '') || (a.nama || '').localeCompare(b.nama || ''));
+
+  const excelRows = allDevices.map((d, index) => {
+    const locObj = locMap.get(d.loc_id);
+    const locName = locObj ? locObj.nama : d.loc_id;
+    const zoneName = (locObj && zoneMap.get(locObj.zone_key)) ? zoneMap.get(locObj.zone_key) : (locObj ? locObj.zone_key : '—');
+
+    return {
+      'No': index + 1,
+      'Nama Perangkat': d.nama,
+      'Gedung / Area': zoneName,
+      'Ruangan / Lokasi': locName,
+      'IP Address': d.ip || '—',
+      'MAC Address': d.mac || '—',
+      'Tipe Perangkat': d.tipe || 'Lainnya',
+      'Merk / Model': d.merk || '—',
+      'Status': d.status || 'Unknown',
+      'Latensi Ping (ms)': d.last_ping_ms !== null && d.last_ping_ms !== undefined ? d.last_ping_ms : '—',
+      'Terakhir Terlihat': d.last_seen ? new Date(d.last_seen).toLocaleString('id-ID') : 'Belum Pernah',
+      'Sistem Operasi': d.device_os || 'generic',
+      'Port SSH': d.ssh_port || 22,
+      'Catatan': d.catatan || ''
+    };
+  });
+
+  try {
+    const worksheet = XLSX.utils.json_to_sheet(excelRows);
+    worksheet['!cols'] = [
+      { wch: 6 },  // No
+      { wch: 28 }, // Nama
+      { wch: 22 }, // Gedung
+      { wch: 24 }, // Ruangan
+      { wch: 18 }, // IP
+      { wch: 20 }, // MAC
+      { wch: 16 }, // Tipe
+      { wch: 18 }, // Merk
+      { wch: 12 }, // Status
+      { wch: 16 }, // Latensi
+      { wch: 22 }, // Last seen
+      { wch: 16 }, // OS
+      { wch: 10 }, // Port
+      { wch: 30 }  // Catatan
+    ];
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Inventaris_Perangkat');
+
+    const filename = `Inventaris_Jaringan_CBA_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+    showToast(`Inventaris ${allDevices.length} perangkat berhasil diekspor ke Excel`, 'ok');
+  } catch (err) {
+    showToast('Gagal mengekspor inventaris: ' + err.message, 'error');
+  }
+}
+
+/* ── PENGUJIAN NOTIFIKASI SISTEM (TEST ALERT) ── */
+async function testAlertNotification() {
+  if (!confirm('Kirim pesan uji coba notifikasi ke saluran Telegram / Webhook yang terdaftar?')) return;
+
+  try {
+    showToast('Mengirim notifikasi uji coba...', 'info');
+    const res = await api.post('/api/control/test-alert', {});
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || 'Gagal mengirim notifikasi');
+    showToast(data.message || 'Notifikasi uji coba berhasil terkirim!', 'ok');
+  } catch (err) {
+    showToast('Gagal mengirim uji coba: ' + err.message, 'error');
+  }
+}
+
+/* ── BACKUP & RESTORE DATABASE WORKBENCH ── */
+function openDatabaseModal() {
+  const m = $('#database-modal');
+  if (m) m.classList.add('open');
+}
+
+function closeDatabaseModal() {
+  const m = $('#database-modal');
+  if (m) m.classList.remove('open');
+  const f = $('#db-restore-file');
+  if (f) f.value = '';
+}
+
+async function downloadDatabaseBackup(btn) {
+  try {
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Membuat Cadangan SQL...';
+    }
+    const token = localStorage.getItem('token');
+    const res = await fetch('/api/control/backup', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!res.ok) {
+      const errJson = await res.json().catch(() => ({}));
+      throw new Error(errJson.error || 'Gagal mengunduh cadangan database');
+    }
+
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `cba_network_backup_${new Date().toISOString().slice(0, 10)}.sql`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+    showToast('Cadangan database (.sql) berhasil diunduh', 'ok');
+  } catch (err) {
+    showToast('Gagal mengunduh cadangan: ' + err.message, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Unduh Cadangan SQL Sekarang`;
+    }
+  }
+}
+
+async function submitDatabaseRestore(btn) {
+  const fileInput = $('#db-restore-file');
+  if (!fileInput || !fileInput.files || !fileInput.files[0]) {
+    showToast('Harap pilih berkas .sql cadangan terlebih dahulu!', 'error');
+    return;
+  }
+
+  const file = fileInput.files[0];
+  if (!file.name.endsWith('.sql')) {
+    showToast('Hanya berkas berekstensi .sql yang didukung!', 'error');
+    return;
+  }
+
+  const confirmed = await showDeleteConfirm({
+    title: 'PULIHKAN DATABASE DARI BERKAS SQL?',
+    targetType: 'DATABASE RESTORATION',
+    targetName: file.name,
+    desc: `Tindakan ini akan menimpa data konfigurasi dan operasional sistem saat ini dengan isi berkas "${file.name}".`,
+    warning: 'PASTIKAN Anda telah mengunduh cadangan database saat ini sebelum melakukan pemulihan.',
+    confirmText: 'YA, PULIHKAN DATABASE',
+    danger: true
+  });
+  if (!confirmed) return;
+
+  try {
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Memulihkan Database...';
+    }
+
+    const sqlText = await file.text();
+    const res = await api.post('/api/control/restore', { sql: sqlText });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || 'Gagal memulihkan database');
+
+    closeDatabaseModal();
+    showToast(data.message || 'Database berhasil dipulihkan!', 'ok');
+
+    // Reload all data
+    setTimeout(async () => {
+      await loadDevices();
+      await loadTopology();
+      if (typeof loadZonesAndLocations === 'function') await loadZonesAndLocations();
+      refreshActiveView();
+    }, 1000);
+  } catch (err) {
+    showToast('Gagal memulihkan database: ' + err.message, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 15v4c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Mulai Pemulihan Database`;
+    }
+  }
+}
+
 /* ── 21. AUDIT TRAIL VIEW (HALLMARK COMPLIANCE LEDGER WORKBENCH) ── */
 let currentAuditLogs = [];
 let currentAuditStats = { total: 0, today: 0, critical: 0, users: [] };
@@ -4534,6 +4744,27 @@ async function renderRoutersView() {
         </div>
       </div>
 
+      <!-- Live Interface Bandwidth Telemetry Section -->
+      <div class="rt-traffic-section" id="rt-traffic-section">
+        <div class="rt-traffic-head">
+          <div class="rt-traffic-callsign">
+            <span class="rt-live-dot"></span>
+            INTERFACE BANDWIDTH & THROUGHPUT TELEMETRY
+          </div>
+          ${activeRouterObj ? `
+            <button class="rt-btn rt-btn-refresh" id="rt-load-traffic-btn" onclick="loadRouterTraffic(${activeRouterObj.id})">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              Segarkan Bandwidth Interface
+            </button>
+          ` : ''}
+        </div>
+        <div id="rt-traffic-container">
+          <div class="rt-traffic-empty">
+            Klik <b>"Segarkan Bandwidth Interface"</b> untuk membaca utilisasi port uplink & downlink router <b>${activeRouterObj ? escapeHtml(activeRouterObj.name) : ''}</b>.
+          </div>
+        </div>
+      </div>
+
       <!-- Blocked Devices Section (Blacklist MAC) -->
       <div class="rt-blacklist-panel">
         <div class="rt-blacklist-head">
@@ -4592,12 +4823,23 @@ async function loadBlockedDevices() {
 
     const isAdmin = currentUser && currentUser.role === 'admin';
 
-    const rows = currentBlockedList.map(b => `
+    const rows = currentBlockedList.map(b => {
+      let durBadge = `<span class="rt-os-pill" style="color:#f87171; border-color:rgba(248,113,113,0.3)">Permanen</span>`;
+      if (b.expires_at) {
+        const isExp = new Date(b.expires_at) <= new Date();
+        if (isExp) {
+          durBadge = `<span class="rt-os-pill" style="color:var(--text-muted); border-color:var(--border)">Kadaluwarsa</span>`;
+        } else {
+          durBadge = `<span class="rt-os-pill" style="color:#fbbf24; border-color:rgba(251,191,36,0.3)">Otomatis: ${new Date(b.expires_at).toLocaleString('id-ID')}</span>`;
+        }
+      }
+      return `
       <tr>
         <td><b>${escapeHtml(b.device_name || 'Perangkat')}</b></td>
         <td style="font-family:var(--mono); font-size:11.5px; color:#f87171; font-weight:700">${escapeHtml(b.mac)}</td>
         <td class="ip-cell">${escapeHtml(b.ip || '—')}</td>
         <td><span class="rt-os-pill" style="color:var(--text-muted); border-color:var(--border)">${escapeHtml(b.router_name || 'Router')}</span></td>
+        <td>${durBadge}</td>
         <td style="font-family:var(--mono); font-size:11.5px; color:var(--text-muted)">${new Date(b.blocked_at).toLocaleString('id-ID')}</td>
         <td>
           ${isAdmin ? `
@@ -4608,7 +4850,8 @@ async function loadBlockedDevices() {
           ` : ''}
         </td>
       </tr>
-    `).join('');
+      `;
+    }).join('');
 
     container.innerHTML = `
       <div class="rt-table-wrap">
@@ -4619,6 +4862,7 @@ async function loadBlockedDevices() {
               <th>MAC Address Blocked</th>
               <th>IP Address</th>
               <th>Router Asal</th>
+              <th>Durasi / Status</th>
               <th>Waktu Block</th>
               <th>Aksi Pemulihan</th>
             </tr>
@@ -4631,6 +4875,67 @@ async function loadBlockedDevices() {
     `;
   } catch (err) {
     container.innerHTML = `<div style="color:var(--alert); padding:10px;">Gagal memuat data block: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+async function loadRouterTraffic(routerId) {
+  const container = $('#rt-traffic-container');
+  const btn = $('#rt-load-traffic-btn');
+  if (!container) return;
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinning"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg> Membaca Bandwidth...`;
+  }
+
+  container.innerHTML = `<div class="rt-traffic-empty" style="color:var(--accent);">Membaca telemetri bandwidth interface via SSH...</div>`;
+
+  try {
+    const res = await api.get(`/api/devices/routers/${routerId}/traffic`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Gagal membaca bandwidth router');
+
+    const ifaces = data.interfaces || [];
+    if (ifaces.length === 0) {
+      container.innerHTML = `<div class="rt-traffic-empty">Tidak ada interface aktif terdeteksi atau perintah telemetri belum didukung pada tipe router ini.</div>`;
+      return;
+    }
+
+    const cardsHtml = ifaces.map(item => `
+      <div class="rt-traffic-card">
+        <div class="rt-traffic-title-bar">
+          <span class="rt-traffic-name">${escapeHtml(item.name)}</span>
+          <span class="rt-traffic-type-badge">${escapeHtml(item.type === 'live_rate' ? 'LIVE RATE' : 'STATS')}</span>
+        </div>
+        <div class="rt-traffic-stats">
+          <div class="rt-traffic-row">
+            <span class="rt-traffic-lbl">DOWNLOAD (RX):</span>
+            <span class="rt-traffic-val rx">${escapeHtml(item.rx_rate)}</span>
+          </div>
+          <div class="rt-traffic-row">
+            <span class="rt-traffic-lbl">UPLOAD (TX):</span>
+            <span class="rt-traffic-val tx">${escapeHtml(item.tx_rate)}</span>
+          </div>
+          ${item.rx_pps && item.rx_pps !== '0' ? `
+            <div class="rt-traffic-row" style="font-size:10.5px; opacity:0.85;">
+              <span class="rt-traffic-lbl">PACKETS/SEC:</span>
+              <span style="color:var(--text-muted); font-family:var(--mono);">Rx: ${escapeHtml(item.rx_pps)} / Tx: ${escapeHtml(item.tx_pps)}</span>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `).join('');
+
+    container.innerHTML = `<div class="rt-traffic-grid">${cardsHtml}</div>`;
+    showToast(`Telemetri ${ifaces.length} interface berhasil diperbarui`, 'ok');
+  } catch (err) {
+    container.innerHTML = `<div class="rt-traffic-empty" style="color:var(--alert);">Gagal: ${escapeHtml(err.message)}</div>`;
+    showToast(err.message, 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg> Segarkan Bandwidth Interface`;
+    }
   }
 }
 
@@ -5272,11 +5577,20 @@ async function openKickModal(deviceId, mac, ip, name) {
         <label>Pilih Router Gateway Eksekutor</label>
         <select id="kick-router-id" style="width:100%; padding:10px">${routerOptions}</select>
       </div>
+      <div class="field" style="margin-top:10px;">
+        <label>Durasi Isolasi / Blokir MAC</label>
+        <select id="kick-block-duration" style="width:100%; padding:10px">
+          <option value="permanent" selected>Permanen (Tetap hingga dibuka manual)</option>
+          <option value="1h">1 Jam (Uji Coba / Isolasi Singkat)</option>
+          <option value="24h">24 Jam (1 Hari Penuh)</option>
+          <option value="7d">7 Hari (1 Minggu)</option>
+        </select>
+      </div>
     </div>
     <div style="display:flex; flex-direction:column; gap:10px; margin-top:20px;">
       <button class="btn-primary" style="background:#ef4444; border:1px solid #dc2626; color:#fff; display:flex; align-items:center; justify-content:center; gap:8px" onclick="submitBlockDevice()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        BLOCK PERMANEN (Blacklist MAC & Firewall)
+        BLOCK / ISOLASI FIREWALL (DENGAN DURASI)
       </button>
       <button class="btn-primary" style="background:rgba(251,191,36,0.15); border:1px solid rgba(251,191,36,0.35); color:#fbbf24; display:flex; align-items:center; justify-content:center; gap:8px" onclick="submitKickDevice()">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/></svg>
@@ -5325,13 +5639,20 @@ async function submitBlockDevice() {
   const routerId = $('#kick-router-id').value;
   const { deviceId, mac, ip, name } = activeKickPayload;
 
+  const durSelect = $('#kick-block-duration');
+  const duration = durSelect ? durSelect.value : 'permanent';
+  const durLabel = duration === '1h' ? '1 Jam' : (duration === '24h' ? '24 Jam' : (duration === '7d' ? '7 Hari' : 'Permanen'));
+
   const confirmed = await showDeleteConfirm({
-    title: 'Karantina / Blokir Permanen MAC',
-    entityType: 'FIREWALL ISOLATION',
-    entityName: `${name} (${mac})`,
-    description: `Perangkat "${name}" (${ip || 'Tanpa IP'}) akan dimasukkan ke dalam daftar isolasi firewall router secara permanen.`,
-    warning: 'Perangkat ini TIDAK AKAN BISA terhubung atau mengakses jaringan Wi-Fi pabrik lagi sampai isolasi dibuka oleh admin.',
-    confirmText: 'Blokir Permanen'
+    title: `Karantina / Blokir MAC (${durLabel})`,
+    targetType: 'FIREWALL ISOLATION',
+    targetName: `${name} (${mac})`,
+    description: `Perangkat "${name}" (${ip || 'Tanpa IP'}) akan dimasukkan ke dalam daftar isolasi firewall router dengan durasi: ${durLabel}.`,
+    warning: duration === 'permanent'
+      ? 'Perangkat ini TIDAK AKAN BISA terhubung atau mengakses jaringan Wi-Fi pabrik lagi sampai isolasi dibuka manual oleh admin.'
+      : `Perangkat ini akan diisolasi selama ${durLabel}, dan akan otomatis dipulihkan setelah durasi berakhir.`,
+    confirmText: `Eksekusi Blokir (${durLabel})`,
+    danger: true
   });
   if (!confirmed) return;
 
@@ -5341,14 +5662,15 @@ async function submitBlockDevice() {
       mac,
       ip,
       router_id: routerId,
-      reason: 'Blocked via Web App'
+      duration,
+      reason: `Blocked via Web App (${durLabel})`
     });
 
     const data = await res.json();
     if (!res.ok || !data.success) throw new Error(data.error || 'Gagal mem-block perangkat');
 
     closeKickModal();
-    showToast(data.message || `Perangkat "${name}" BERHASIL DI-BLOCK PERMANEN!`, 'ok');
+    showToast(data.message || `Perangkat "${name}" BERHASIL DI-BLOCK (${durLabel})!`, 'ok');
     loadBlockedDevices();
     if (selectedRouterForClients) inspectRouterClients(selectedRouterForClients);
   } catch (err) {

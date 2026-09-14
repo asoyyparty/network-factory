@@ -7,6 +7,11 @@ require('dotenv').config();
 const INTERVAL_MS    = parseInt(process.env.PING_INTERVAL_MS) || 30000;
 const HISTORY_DAYS   = parseInt(process.env.PING_HISTORY_DAYS) || 7;
 const BATCH_SIZE     = 25; // ping max 25 device sekaligus
+const FAIL_THRESHOLD = parseInt(process.env.ALERT_FAIL_THRESHOLD) || 3; // Ambang batas retry sebelum kirim alert offline
+
+// State tracking untuk anti-flapping debounce
+const failureCounters = new Map();     // deviceId -> counter kegagalan berturut-turut
+const confirmedDownAlerted = new Set(); // deviceId -> set perangkat yang sudah dikirimi alert offline
 
 let wsServer  = null;
 let isCycling = false;
@@ -20,6 +25,46 @@ function broadcast(data) {
       try { client.send(payload); } catch (_) {}
     }
   });
+}
+
+/* Sweep otomatis untuk membuka blokir MAC yang sudah melewati batas durasi */
+async function sweepExpiredBlocks() {
+  try {
+    const [expired] = await db.execute(`
+      SELECT b.*, r.name as router_name, r.host as router_host, r.port as router_port,
+             r.username as router_user, r.password as router_pass, r.router_type
+      FROM blocked_devices b
+      LEFT JOIN routers r ON b.router_id = r.id
+      WHERE b.expires_at IS NOT NULL AND b.expires_at <= NOW()
+    `);
+
+    if (!expired || expired.length === 0) return;
+
+    const { unblockDeviceOnRouter } = require('./routerControl');
+    for (const item of expired) {
+      if (item.router_name) {
+        const routerObj = {
+          id: item.router_id,
+          name: item.router_name,
+          host: item.router_host,
+          port: item.router_port,
+          username: item.router_user,
+          password: item.router_pass,
+          router_type: item.router_type
+        };
+        try {
+          await unblockDeviceOnRouter(routerObj, item.mac, item.ip);
+        } catch (e) {
+          console.error(`[AutoUnblock] Gagal membuka blokir di router ${item.router_name}:`, e.message);
+        }
+      }
+      await db.execute('DELETE FROM blocked_devices WHERE id = ?', [item.id]);
+      logAudit('system', 'Auto Unblock (Expired)', item.device_name || item.mac, `Durasi isolasi selesai (Kadaluwarsa: ${item.expires_at})`);
+      console.log(`[AutoUnblock] Blokir ${item.mac} otomatis dibuka karena durasi telah habis.`);
+    }
+  } catch (err) {
+    // Abaikan jika kolom expires_at belum ada
+  }
 }
 
 /* Ping satu device dan simpan hasilnya */
@@ -54,13 +99,28 @@ async function pingOne(device) {
       WHERE id = ?
     `, [status, latencyMs, isOnline ? 1 : 0, id]);
 
-    // Check state transition for notification
-    if (oldStatus && oldStatus !== 'Unknown' && oldStatus !== status) {
-      const icon = isOnline ? '✅' : '🚨';
-      const msg = `${icon} *Perubahan Status Perangkat*\n\n*Nama:* ${nama}\n*IP:* ${ip}\n*Status Baru:* ${status}\n*Waktu:* ${new Date().toLocaleString('id-ID')}`;
-      
-      sendAlert(msg);
-      logAudit('system', 'Status Changed', nama, `Status berubah dari ${oldStatus} menjadi ${status}`);
+    // Anti-flapping debounce logic untuk notifikasi eksternal (Telegram / Webhook)
+    if (isOnline) {
+      // Jika perangkat sebelumnya terkonfirmasi offline dan sudah dikirimi alert, kirimkan notifikasi pemulihan
+      if (confirmedDownAlerted.has(id)) {
+        confirmedDownAlerted.delete(id);
+        const msg = `✅ *Pemulihan Perangkat (Recovered)*\n\n*Nama:* ${nama}\n*IP:* ${ip}\n*Status:* Online (${latencyMs !== null ? latencyMs + ' ms' : 'OK'})\n*Waktu:* ${new Date().toLocaleString('id-ID')}`;
+        sendAlert(msg);
+        logAudit('system', 'Status Recovered', nama, `Perangkat kembali Online (${latencyMs || 0} ms)`);
+      }
+      failureCounters.set(id, 0);
+    } else {
+      // Perangkat gagal ping: tingkatkan counter kegagalan
+      const currentFails = (failureCounters.get(id) || 0) + 1;
+      failureCounters.set(id, currentFails);
+
+      // Hanya kirim alert jika telah gagal mencapai ambang batas FAIL_THRESHOLD (default 3x = ~90s)
+      if (currentFails >= FAIL_THRESHOLD && !confirmedDownAlerted.has(id)) {
+        confirmedDownAlerted.add(id);
+        const msg = `🚨 *Peringatan Perangkat Terputus (Offline)*\n\n*Nama:* ${nama}\n*IP:* ${ip}\n*Status:* Offline (${currentFails}x gagal ping berturut-turut)\n*Waktu:* ${new Date().toLocaleString('id-ID')}`;
+        sendAlert(msg);
+        logAudit('system', 'Status Offline Confirmed', nama, `Perangkat offline terkonfirmasi (${currentFails}x gagal berturut-turut)`);
+      }
     }
 
     return { device_id: id, ip, online: isOnline, latency_ms: latencyMs, status };
@@ -76,6 +136,9 @@ async function runCycle() {
   isCycling = true;
 
   try {
+    // Sweep perangkat terblokir yang durasinya sudah kadaluwarsa
+    await sweepExpiredBlocks();
+
     const [devices] = await db.execute(`
       SELECT id, nama, ip, status FROM devices
       WHERE ip IS NOT NULL AND ip != ''

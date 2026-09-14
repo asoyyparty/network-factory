@@ -401,6 +401,21 @@ router.get('/routers/:id/clients', async (req, res) => {
   }
 });
 
+/* ── GET /api/devices/routers/:id/traffic — Telemetri Bandwidth & Interface ── */
+router.get('/routers/:id/traffic', async (req, res) => {
+  try {
+    const [rows] = await db.execute('SELECT * FROM routers WHERE id = ?', [req.params.id]);
+    if (rows.length === 0) return res.status(404).json({ error: 'Router tidak ditemukan' });
+
+    const { getRouterTraffic } = require('../services/routerControl');
+    const trafficData = await getRouterTraffic(rows[0]);
+    res.json(trafficData);
+  } catch (err) {
+    console.error('[Router Traffic Error]', err);
+    res.status(500).json({ error: err.message || 'Gagal membaca telemetri bandwidth router' });
+  }
+});
+
 /* ── GET /api/devices/scan ────────────────────────────────────── */
 router.get('/scan', async (req, res) => {
   try {

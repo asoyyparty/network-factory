@@ -445,9 +445,196 @@ function unblockDeviceOnRouter(router, macAddress, ipAddress) {
   });
 }
 
+/**
+ * Format raw byte number to human-readable string
+ */
+function formatBytes(bytes) {
+  if (!bytes || isNaN(bytes) || bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+/**
+ * Parse output telemetri traffic dari router (MikroTik / Linux / OpenWrt)
+ */
+function parseTrafficOutput(rType, output) {
+  const ifaces = [];
+  const lowerType = String(rType || '').toLowerCase();
+
+  if (lowerType.includes('mikrotik')) {
+    // 1. Coba parse hasil monitor-traffic
+    const blocks = output.split(/(?=name:\s+)/i);
+    for (const b of blocks) {
+      const nameMatch = b.match(/name:\s*([^\r\n]+)/i);
+      if (!nameMatch) continue;
+      const name = nameMatch[1].trim();
+      const rxMatch = b.match(/rx-bits-per-second:\s*([^\r\n]+)/i);
+      const txMatch = b.match(/tx-bits-per-second:\s*([^\r\n]+)/i);
+      const rxPps = b.match(/rx-packets-per-second:\s*([^\r\n]+)/i);
+      const txPps = b.match(/tx-packets-per-second:\s*([^\r\n]+)/i);
+
+      ifaces.push({
+        name,
+        rx_rate: rxMatch ? rxMatch[1].trim() : '0 bps',
+        tx_rate: txMatch ? txMatch[1].trim() : '0 bps',
+        rx_pps: rxPps ? rxPps[1].trim() : '0',
+        tx_pps: txPps ? txPps[1].trim() : '0',
+        type: 'live_rate'
+      });
+    }
+
+    // 2. Fallback jika monitor-traffic kosong: parse /interface print stats
+    if (ifaces.length === 0) {
+      const lines = output.split(/\r?\n/);
+      for (const line of lines) {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length >= 4 && /^\d+/.test(parts[0])) {
+          let nameIdx = 1;
+          while (nameIdx < parts.length && /^[RXSDI]+$/.test(parts[nameIdx])) {
+            nameIdx++;
+          }
+          if (nameIdx < parts.length) {
+            const name = parts[nameIdx];
+            const rxByte = parseInt(parts[nameIdx + 1]);
+            const txByte = parseInt(parts[nameIdx + 2]);
+            if (!isNaN(rxByte)) {
+              ifaces.push({
+                name,
+                rx_rate: formatBytes(rxByte) + ' (Total)',
+                tx_rate: formatBytes(txByte || 0) + ' (Total)',
+                type: 'cumulative'
+              });
+            }
+          }
+        }
+      }
+    }
+  } else {
+    // Linux / OpenWrt / Asuswrt via /proc/net/dev
+    const lines = output.split(/\r?\n/);
+    for (const line of lines) {
+      const colonIdx = line.indexOf(':');
+      if (colonIdx === -1) continue;
+      const ifName = line.slice(0, colonIdx).trim();
+      if (ifName === 'lo') continue;
+      const stats = line.slice(colonIdx + 1).trim().split(/\s+/);
+      if (stats.length >= 9) {
+        const rxBytes = parseInt(stats[0]) || 0;
+        const txBytes = parseInt(stats[8]) || 0;
+        ifaces.push({
+          name: ifName,
+          rx_rate: formatBytes(rxBytes) + ' (Total)',
+          tx_rate: formatBytes(txBytes) + ' (Total)',
+          type: 'cumulative'
+        });
+      }
+    }
+  }
+
+  return ifaces;
+}
+
+/**
+ * Membaca utilisasi bandwidth dan statistik interface router secara real-time
+ */
+function getRouterTraffic(router) {
+  return new Promise((resolve, reject) => {
+    const conn = new Client();
+    let isResolved = false;
+
+    const timer = setTimeout(() => {
+      if (!isResolved) {
+        isResolved = true;
+        conn.destroy();
+        reject(new Error('Koneksi SSH ke router timeout saat membaca telemetri bandwidth'));
+      }
+    }, 12000);
+
+    const rType = (router.router_type || 'mikrotik').toLowerCase();
+    let cmd = '';
+    if (rType.includes('mikrotik')) {
+      cmd = '/interface monitor-traffic [find where disabled=no and running=yes] once ; /interface print stats without-paging';
+    } else {
+      cmd = 'cat /proc/net/dev';
+    }
+
+    conn.on('ready', () => {
+      conn.exec(cmd, (err, stream) => {
+        if (err) {
+          if (!isResolved) {
+            isResolved = true;
+            clearTimeout(timer);
+            conn.end();
+            return reject(err);
+          }
+        }
+
+        let output = '';
+        stream.on('data', d => { output += d.toString(); });
+        if (stream.stderr) stream.stderr.on('data', d => { output += d.toString(); });
+
+        stream.on('close', () => {
+          if (isResolved) return;
+          isResolved = true;
+          clearTimeout(timer);
+          conn.end();
+
+          try {
+            const ifaces = parseTrafficOutput(rType, output);
+            resolve({
+              router_id: router.id,
+              router_name: router.name,
+              router_type: rType,
+              timestamp: new Date().toISOString(),
+              interfaces: ifaces,
+              raw: ifaces.length === 0 ? output : undefined
+            });
+          } catch (pe) {
+            resolve({
+              router_id: router.id,
+              router_name: router.name,
+              router_type: rType,
+              timestamp: new Date().toISOString(),
+              interfaces: [],
+              raw: output
+            });
+          }
+        });
+      });
+    });
+
+    conn.on('error', err => {
+      if (!isResolved) {
+        isResolved = true;
+        clearTimeout(timer);
+        reject(new Error(`Gagal membaca bandwidth: ${err.message}`));
+      }
+    });
+
+    try {
+      conn.connect({
+        host: router.host,
+        port: parseInt(router.port) || 22,
+        username: router.username,
+        password: router.password || '',
+        readyTimeout: 10000,
+        tryKeyboard: true,
+        algorithms: COMMON_ALGORITHMS
+      });
+    } catch (e) {
+      clearTimeout(timer);
+      reject(e);
+    }
+  });
+}
+
 module.exports = {
   testRouterSSH,
   kickDeviceFromRouter,
   blockDeviceOnRouter,
-  unblockDeviceOnRouter
+  unblockDeviceOnRouter,
+  getRouterTraffic
 };
+

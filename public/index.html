@@ -876,7 +876,10 @@
           <span class="st-index-tag">SYS // NAV</span>
           <span class="st-index-title">AREA INDEX</span>
         </div>
-        <div class="sidebar-top-tools">
+          <button class="st-tool-btn" title="Unduh Seluruh Inventaris Perangkat (.xlsx)" onclick="exportAllDevicesExcel()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>EXPORT</span>
+          </button>
           <button class="st-tool-btn admin-only" title="Kelola Kategori / Area Gedung" onclick="openZonesModal()">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
             <span>CONFIG</span>
@@ -1523,6 +1526,46 @@
       </form>
     </div>
   </div>
+  <!-- ── MODAL: Database Maintenance (Backup & Restore - Hallmark Design) ── -->
+  <div class="modal-overlay" id="database-modal" data-modal="database">
+    <div class="modal" style="max-width:540px; width:95%">
+      <button class="modal-close" onclick="closeDatabaseModal()" title="Tutup">✕</button>
+      <div style="font-family:var(--mono);font-size:9.5px;font-weight:700;color:var(--accent);letter-spacing:0.1em;margin-bottom:4px">SYSTEM MAINTENANCE // DATABASE ARCHIVE & RESTORE</div>
+      <p class="modal-title" style="margin:0 0 16px;font-size:17px;font-weight:700;color:#fff">Pemeliharaan Database Sistem</p>
+
+      <!-- Section 1: Backup -->
+      <div style="background:var(--panel-2); border:1px solid var(--border); border-radius:6px; padding:14px; margin-bottom:14px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+          <span style="font-weight:700; color:#fff; font-size:13px">1. Unduh Cadangan Database (.SQL)</span>
+          <span class="rt-os-pill" style="color:var(--ok); border-color:rgba(52,211,153,0.3)">PORTABLE DUMP</span>
+        </div>
+        <p style="font-size:12px; color:var(--text-muted); margin:0 0 12px; line-height:1.4">
+          Ekspor seluruh skema dan data tabel (perangkat, topologi, router, pengguna, riwayat ping, dan log audit) ke dalam satu file SQL murni yang siap dipulihkan kapan saja.
+        </p>
+        <button type="button" class="btn-primary" style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px" onclick="downloadDatabaseBackup(this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Unduh Cadangan SQL Sekarang
+        </button>
+      </div>
+
+      <!-- Section 2: Restore -->
+      <div style="background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.25); border-radius:6px; padding:14px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+          <span style="font-weight:700; color:#f87171; font-size:13px">2. Pulihkan Database dari Berkas SQL</span>
+          <span class="rt-os-pill" style="color:#f87171; border-color:rgba(239,68,68,0.3)">HATI-HATI</span>
+        </div>
+        <p style="font-size:12px; color:var(--text-muted); margin:0 0 12px; line-height:1.4">
+          Pilih berkas cadangan <code>.sql</code> dari komputer Anda untuk menimpa/memulihkan data sistem ke kondisi sebelumnya.
+        </p>
+        <input type="file" id="db-restore-file" accept=".sql" style="width:100%; margin-bottom:12px; font-size:12px; color:var(--text-muted)">
+        <button type="button" class="btn-primary" style="background:#ef4444; border-color:#dc2626; color:#fff; width:100%; display:flex; align-items:center; justify-content:center; gap:8px" onclick="submitDatabaseRestore(this)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 15v4c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Mulai Pemulihan Database
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── MODAL: Delete & Destructive Action Confirmation (Hallmark Standard) ── -->
   <div class="modal-overlay" id="delete-confirm-modal" data-modal="deleteconfirm">
     <div class="modal del-modal-card">

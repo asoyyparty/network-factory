@@ -161,9 +161,17 @@ async function initializeDB() {
       ip VARCHAR(45) NULL,
       device_name VARCHAR(255) DEFAULT 'Perangkat',
       reason TEXT NULL,
+      expires_at DATETIME NULL,
       blocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // Migration: Ensure expires_at column exists in blocked_devices
+  try {
+    await pool.query('ALTER TABLE blocked_devices ADD COLUMN expires_at DATETIME NULL AFTER reason');
+  } catch (_) {
+    // Column already exists
+  }
 
   // Seed default router from .env if empty
   const [routersCount] = await pool.query('SELECT COUNT(*) as count FROM routers');
