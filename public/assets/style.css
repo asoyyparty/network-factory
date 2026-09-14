@@ -7909,3 +7909,221 @@ button:focus:not(:focus-visible) { outline: none; }
   padding-top: 14px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
+
+/* ── 10.16 HALLMARK DESTRUCTIVE ACTION CONFIRMATION MODAL (#delete-confirm-modal) ── */
+
+.del-modal-card {
+  max-width: 480px;
+  width: 95%;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(2, 6, 23, 0.99));
+  border: 1px solid rgba(244, 63, 94, 0.25);
+  border-left: 3px solid #f43f5e;
+  border-radius: 8px;
+  padding: 24px 26px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85), 0 0 24px rgba(244, 63, 94, 0.08);
+}
+
+.del-modal-head {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.del-callsign-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.del-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #f43f5e;
+  box-shadow: 0 0 8px #f43f5e;
+  display: inline-block;
+  animation: delPulseLive 2s infinite ease-in-out;
+}
+
+@keyframes delPulseLive {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+.del-callsign {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #f43f5e;
+  letter-spacing: 0.12em;
+}
+
+.del-title {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.01em;
+}
+
+.del-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.del-target-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+
+.del-target-type {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: rgba(244, 63, 94, 0.12);
+  border: 1px solid rgba(244, 63, 94, 0.25);
+  color: #f43f5e;
+  white-space: nowrap;
+}
+
+.del-target-name {
+  font-family: var(--sans);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text, #f1f5f9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.del-desc {
+  margin: 0;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted, #94a3b8);
+}
+
+.del-warning-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: rgba(245, 158, 11, 0.08);
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: #fbbf24;
+}
+
+.del-warn-ico {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.del-warn-content {
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 1.45;
+  color: #fef08a;
+}
+
+.del-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.del-btn-cancel {
+  background: transparent;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+  color: var(--text-muted, #94a3b8);
+  padding: 9px 18px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--sans);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: 38px;
+}
+
+.del-btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.del-btn-cancel:focus-visible {
+  outline: 2px solid var(--accent, #38bdf8);
+  outline-offset: 2px;
+}
+
+.del-btn-confirm {
+  background: #e11d48;
+  border: 1px solid #f43f5e;
+  color: #fff;
+  padding: 9px 20px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--sans);
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(225, 29, 72, 0.35);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+  min-height: 38px;
+}
+
+.del-btn-confirm:hover {
+  background: #f43f5e;
+  box-shadow: 0 6px 16px rgba(244, 63, 94, 0.45);
+  transform: translateY(-1px);
+}
+
+.del-btn-confirm:active {
+  transform: translateY(0);
+}
+
+.del-btn-confirm:focus-visible {
+  outline: 2px solid #fb7185;
+  outline-offset: 2px;
+}
+
+.del-btn-confirm.is-loading {
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+/* Mobile Responsiveness for Confirmation Dialog */
+@media (max-width: 480px) {
+  .del-modal-card {
+    padding: 20px 18px;
+  }
+  .del-actions {
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+  .del-btn-cancel,
+  .del-btn-confirm {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+}

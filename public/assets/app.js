@@ -2687,8 +2687,104 @@ async function addOption() {
   }
 }
 
+/* ── 14B. HALLMARK DESTRUCTIVE ACTION CONFIRMATION MODAL CONTROLLER ── */
+let _delConfirmResolver = null;
+
+function showDeleteConfirm({
+  title = 'Konfirmasi Penghapusan',
+  entityType = 'ENTITAS',
+  entityName = '',
+  description = 'Data yang dihapus tidak dapat dipulihkan kembali. Seluruh catatan telemetri dan riwayat operasional terkait akan dihapus secara permanen.',
+  warning = '',
+  confirmText = 'Hapus Permanen',
+  cancelText = 'Batal'
+} = {}) {
+  const modal = $('#delete-confirm-modal');
+  if (!modal) return Promise.resolve(window.confirm(`${title}: ${entityName}\n${description}`));
+
+  const titleEl = $('#del-modal-title');
+  const typeEl = $('#del-target-type');
+  const nameEl = $('#del-target-name');
+  const descEl = $('#del-modal-desc');
+  const warnBox = $('#del-warning-box');
+  const warnText = $('#del-warning-text');
+  const cancelBtn = $('#del-btn-cancel');
+  const confirmBtn = $('#del-btn-confirm');
+  const confirmLabel = $('#del-confirm-label');
+  const closeBtn = $('#del-modal-close');
+
+  if (titleEl) titleEl.textContent = title;
+  if (typeEl) typeEl.textContent = (entityType || 'ENTITAS').toUpperCase();
+  if (nameEl) nameEl.textContent = entityName || '—';
+  if (descEl) descEl.textContent = description;
+
+  if (warnBox && warnText) {
+    if (warning) {
+      warnText.innerHTML = escapeHtml(warning);
+      warnBox.style.display = 'flex';
+    } else {
+      warnBox.style.display = 'none';
+      warnText.innerHTML = '';
+    }
+  }
+
+  if (cancelBtn) cancelBtn.textContent = cancelText;
+  if (confirmLabel) confirmLabel.textContent = confirmText;
+  if (confirmBtn) confirmBtn.classList.remove('is-loading');
+
+  return new Promise((resolve) => {
+    _delConfirmResolver = resolve;
+
+    function cleanup(result) {
+      modal.classList.remove('open');
+      window.removeEventListener('keydown', onKeyDown);
+      modal.removeEventListener('click', onBackdropClick);
+      if (cancelBtn) cancelBtn.removeEventListener('click', onCancel);
+      if (confirmBtn) confirmBtn.removeEventListener('click', onConfirm);
+      if (closeBtn) closeBtn.removeEventListener('click', onCancel);
+      _delConfirmResolver = null;
+      resolve(result);
+    }
+
+    function onCancel() { cleanup(false); }
+    function onConfirm() {
+      if (confirmBtn) confirmBtn.classList.add('is-loading');
+      cleanup(true);
+    }
+    function onBackdropClick(e) {
+      if (e.target === modal) cleanup(false);
+    }
+    function onKeyDown(e) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        cleanup(false);
+      }
+    }
+
+    window.addEventListener('keydown', onKeyDown);
+    modal.addEventListener('click', onBackdropClick);
+    if (cancelBtn) cancelBtn.addEventListener('click', onCancel);
+    if (confirmBtn) confirmBtn.addEventListener('click', onConfirm);
+    if (closeBtn) closeBtn.addEventListener('click', onCancel);
+
+    modal.classList.add('open');
+    setTimeout(() => {
+      if (cancelBtn) cancelBtn.focus();
+    }, 50);
+  });
+}
+
 async function deleteOption(key) {
-  if (!confirm(`Hapus opsi "${key}"? (Perangkat yang menggunakan opsi ini akan disesuaikan)`)) return;
+  const modeLabel = activeOptionsMode === 'types' ? 'Tipe Perangkat' : 'Sistem Operasi (OS)';
+  const confirmed = await showDeleteConfirm({
+    title: `Hapus Opsi ${modeLabel}`,
+    entityType: 'OPSI SISTEM',
+    entityName: key,
+    description: `Menghapus opsi ${modeLabel.toLowerCase()} "${key}" dari daftar pilihan sistem.`,
+    warning: 'Perangkat aktif yang saat ini menggunakan opsi ini akan disesuaikan menjadi tidak memiliki kategori terkait.',
+    confirmText: 'Hapus Opsi'
+  });
+  if (!confirmed) return;
 
   try {
     const url = activeOptionsMode === 'types' ? `/api/devices/types/${encodeURIComponent(key)}` : `/api/devices/os/${encodeURIComponent(key)}`;
@@ -2771,12 +2867,24 @@ async function submitDeviceForm(){
 function editDevice(id){ openDeviceForm(id); }
 
 async function deleteDevice(id){
-  if(!confirm('Hapus perangkat ini dari daftar?')) return;
+  const dev = Object.values(state.devices || {}).flat().find(d => d.id === id);
+  const devName = dev ? (dev.nama || dev.ip || `ID #${id}`) : `ID #${id}`;
+  const devIp = dev && dev.ip ? ` [${dev.ip}]` : '';
+
+  const confirmed = await showDeleteConfirm({
+    title: 'Hapus Perangkat Jaringan',
+    entityType: 'PERANGKAT',
+    entityName: `${devName}${devIp}`,
+    description: 'Perangkat ini akan dihapus dari sistem. Seluruh metrik ketersediaan, pemantauan ping, dan riwayat telemetri perangkat ini akan dihapus permanen.',
+    confirmText: 'Hapus Perangkat'
+  });
+  if (!confirmed) return;
+
   try {
     await apiDeleteDevice(id);
     state.devices[currentLocId]=(state.devices[currentLocId]||[]).filter(d=>d.id!==id);
     refreshActiveView(); renderSidebar(); renderStats(); renderTopology();
-    showToast('Perangkat dihapus','info');
+    showToast('Perangkat berhasil dihapus','info');
   } catch(err){
     showToast('Error: '+err.message,'error');
   }
@@ -3031,7 +3139,19 @@ async function submitChangePassword(){
 
 /* ── 19. WAKE ON LAN (WoL) ─────────────────────────────────────────── */
 async function wakeDevice(deviceId) {
-  if (!confirm('Kirim Magic Packet (Wake-on-LAN) ke perangkat ini?')) return;
+  const dev = Object.values(state.devices || {}).flat().find(d => d.id === deviceId);
+  const devName = dev ? (dev.nama || dev.ip || `ID #${deviceId}`) : `ID #${deviceId}`;
+  const devMac = dev && dev.mac ? ` (MAC: ${dev.mac})` : '';
+
+  const confirmed = await showDeleteConfirm({
+    title: 'Kirim Sinyal Wake-on-LAN (WoL)',
+    entityType: 'REMOTE POWER ACTIVATION',
+    entityName: `${devName}${devMac}`,
+    description: `Mengirimkan sinyal frame Magic Packet WoL melalui broadcast jaringan untuk menyalakan perangkat "${devName}" dari jarak jauh.`,
+    confirmText: 'Kirim Magic Packet'
+  });
+  if (!confirmed) return;
+
   try {
     showToast('Mengirim Magic Packet...');
     const res = await api.post('/api/control/wake', { device_id: deviceId });
@@ -4234,7 +4354,15 @@ async function submitResetUserPwd() {
 
 /* Delete User */
 async function deleteUser(id, username) {
-  if (!confirm(`Apakah Anda yakin ingin menghapus operator "${username}"?`)) return;
+  const confirmed = await showDeleteConfirm({
+    title: 'Hapus Akun Operator Sistem',
+    entityType: 'OPERATOR RBAC',
+    entityName: username,
+    description: `Akun operator "${username}" akan dicabut hak aksesnya dari portal monitoring pabrik secara permanen.`,
+    warning: 'Operator ini tidak akan bisa login lagi ke sistem. Seluruh jejak aktivitas audit log historis tetap dipertahankan.',
+    confirmText: 'Hapus Operator'
+  });
+  if (!confirmed) return;
 
   try {
     const res = await api.delete(`/api/auth/users/${id}`);
@@ -5065,7 +5193,15 @@ async function submitRouterForm() {
 }
 
 async function deleteRouter(id, name) {
-  if (!confirm(`Apakah Anda yakin ingin menghapus router "${name}"?`)) return;
+  const confirmed = await showDeleteConfirm({
+    title: 'Hapus Gateway Router / AP',
+    entityType: 'GATEWAY ROUTER',
+    entityName: name,
+    description: `Konfigurasi terminal SSH dan pemantauan sinyal klien untuk router "${name}" akan dihapus dari sistem.`,
+    warning: 'Sistem tidak akan lagi menginspeksi atau mengendalikan router ini via antarmuka web.',
+    confirmText: 'Hapus Router'
+  });
+  if (!confirmed) return;
 
   try {
     const res = await api.delete(`/api/devices/routers/${id}`);
@@ -5189,9 +5325,15 @@ async function submitBlockDevice() {
   const routerId = $('#kick-router-id').value;
   const { deviceId, mac, ip, name } = activeKickPayload;
 
-  if (!confirm(`Apakah Anda YAKIN ingin MEM-BLOCK PERMANEN perangkat "${name}" (${mac})? Perangkat TIDAK AKAN BISA terhubung ke Wi-Fi lagi.`)) {
-    return;
-  }
+  const confirmed = await showDeleteConfirm({
+    title: 'Karantina / Blokir Permanen MAC',
+    entityType: 'FIREWALL ISOLATION',
+    entityName: `${name} (${mac})`,
+    description: `Perangkat "${name}" (${ip || 'Tanpa IP'}) akan dimasukkan ke dalam daftar isolasi firewall router secara permanen.`,
+    warning: 'Perangkat ini TIDAK AKAN BISA terhubung atau mengakses jaringan Wi-Fi pabrik lagi sampai isolasi dibuka oleh admin.',
+    confirmText: 'Blokir Permanen'
+  });
+  if (!confirmed) return;
 
   try {
     const res = await api.post('/api/control/block', {
@@ -5215,7 +5357,18 @@ async function submitBlockDevice() {
 }
 
 async function submitUnblockDevice(blockId) {
-  if (!confirm('Apakah Anda yakin ingin membuka block untuk perangkat ini?')) return;
+  const item = (currentBlockedList || []).find(b => b.id == blockId);
+  const targetLabel = item ? `${item.device_name || 'Perangkat'} (${item.mac})` : 'Perangkat Terblokir';
+
+  const confirmed = await showDeleteConfirm({
+    title: 'Buka Blokir Karantina Perangkat',
+    entityType: 'FIREWALL RESTORATION',
+    entityName: targetLabel,
+    description: `Aturan pemblokiran untuk "${targetLabel}" akan dicabut dari firewall router gateway.`,
+    confirmText: 'Buka Blokir',
+    cancelText: 'Batal'
+  });
+  if (!confirmed) return;
 
   try {
     const res = await api.post('/api/control/unblock', { block_id: blockId });
@@ -5880,11 +6033,23 @@ async function moveTopoNodeOrder(id, direction) {
 async function deleteNode(id) {
   const node = RAW_TOPOLOGY.find(n => n.id === id);
   const childNodes = RAW_TOPOLOGY.filter(n => n.parent_id === id);
-  let msg = `Yakin ingin menghapus node "${node ? node.label : id}"?`;
+  const nodeLabel = node ? node.label : id;
+  const nodeKind = node ? (node.kind === 'building' ? 'LOKASI GEDUNG' : 'INFRASTRUKTUR') : 'SIMPUL';
+
+  let warning = '';
   if (childNodes.length > 0) {
-    msg = `PERINGATAN: Node "${node ? node.label : id}" memiliki ${childNodes.length} sub-node anak (${childNodes.slice(0, 3).map(c => c.label).join(', ')}${childNodes.length > 3 ? '...' : ''}). Jika dihapus, sub-node akan menjadi root terputus. Lanjutkan?`;
+    warning = `Simpul ini menaungi ${childNodes.length} sub-node anak (${childNodes.slice(0, 3).map(c => c.label).join(', ')}${childNodes.length > 3 ? '...' : ''}). Jika simpul ini dihapus, seluruh cabang anak akan terputus dari jalurnya!`;
   }
-  if (!confirm(msg)) return;
+
+  const confirmed = await showDeleteConfirm({
+    title: 'Hapus Simpul Topologi',
+    entityType: nodeKind,
+    entityName: nodeLabel,
+    description: `Simpul "${nodeLabel}" akan dihapus dari struktur hierarki distribusi jaringan pabrik.`,
+    warning,
+    confirmText: 'Hapus Simpul'
+  });
+  if (!confirmed) return;
 
   try {
     const res = await api.request('DELETE', '/api/topology/' + id);
@@ -6164,7 +6329,15 @@ async function deleteZone(id) {
     return;
   }
 
-  if (!confirm(`Apakah Anda yakin ingin menghapus kategori "${label}"?`)) return;
+  const confirmed = await showDeleteConfirm({
+    title: 'Hapus Kategori Utama Gedung',
+    entityType: 'KATEGORI GEDUNG',
+    entityName: label,
+    description: `Kategori utama gedung "${label}" akan dihapus dari taksonomi hierarki pabrik.`,
+    warning: 'Pastikan tidak ada sub-kategori ruangan yang masih menginduk ke kategori ini.',
+    confirmText: 'Hapus Kategori'
+  });
+  if (!confirmed) return;
 
   try {
     const res = await api.delete(`/api/devices/zones/${id}`);
@@ -6381,13 +6554,29 @@ async function deleteSubCat(id) {
   if (devCount > 0) {
     const relatedDevs = Array.isArray(allDevices) ? allDevices.filter(d => String(d.loc_id) === String(id)).map(d => d.nama || d.ip) : [];
     const devListStr = relatedDevs.length > 0 ? ` (${relatedDevs.slice(0, 3).join(', ')}${relatedDevs.length > 3 ? '...' : ''})` : '';
-    if (confirm(`Ruangan "${locName}" tidak dapat dihapus karena masih digunakan oleh ${devCount} perangkat aktif${devListStr}.\n\nApakah Anda ingin memindahkan perangkat-perangkat ini ke ruangan lain sekarang?`)) {
+    const shouldMove = await showDeleteConfirm({
+      title: 'Ruangan Tidak Dapat Dihapus Langsung',
+      entityType: 'RUANGAN BERISI PERANGKAT',
+      entityName: `${locName} · ${devCount} Perangkat Aktif`,
+      description: `Ruangan "${locName}" tidak dapat dihapus karena masih digunakan oleh ${devCount} unit perangkat aktif${devListStr}.`,
+      warning: 'Apakah Anda ingin membuka antarmuka pemindahan perangkat untuk merelokasi perangkat-perangkat ini ke ruangan lain sekarang?',
+      confirmText: 'Buka Pemindahan Perangkat',
+      cancelText: 'Tutup'
+    });
+    if (shouldMove) {
       openMoveModalForLocation(id);
     }
     return;
   }
 
-  if (!confirm(`Apakah Anda yakin ingin menghapus sub-kategori "${locName}"?`)) return;
+  const confirmed = await showDeleteConfirm({
+    title: 'Hapus Sub-Kategori / Ruangan',
+    entityType: 'SUB-KATEGORI RUANGAN',
+    entityName: locName,
+    description: `Ruangan "${locName}" akan dihapus dari daftar sub-kategori lokasi pabrik dan navigasi sidebar.`,
+    confirmText: 'Hapus Ruangan'
+  });
+  if (!confirmed) return;
 
   try {
     const res = await api.delete(`/api/devices/locations/${id}`);
