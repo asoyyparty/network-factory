@@ -4731,7 +4731,7 @@ async function renderRoutersView() {
           </div>
           ${activeRouterObj ? `
             <button class="rt-btn rt-btn-refresh" id="rt-scan-clients-btn" onclick="inspectRouterClients(${activeRouterObj.id})">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
               Pindai Klien Live
             </button>
           ` : ''}
@@ -4785,8 +4785,14 @@ async function renderRoutersView() {
 
   loadBlockedDevices();
 
-  if (activeRouterObj) {
-    inspectRouterClients(activeRouterObj.id);
+  if (activeRouterObj && currentInspectedClients && currentInspectedClients.length > 0) {
+    const container = $('#router-clients-container');
+    if (container) {
+      const count24G = currentInspectedClients.filter(c => c.band === '2.4GHz').length;
+      const count5G  = currentInspectedClients.filter(c => c.band === '5GHz').length;
+      const countLAN = currentInspectedClients.filter(c => c.band === 'LAN').length;
+      renderInspectedClientsTable(container, currentWifiFilterBand, count24G, count5G, countLAN);
+    }
   }
 }
 
@@ -4885,7 +4891,7 @@ async function loadRouterTraffic(routerId) {
 
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinning"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg> Membaca Bandwidth...`;
+    btn.innerHTML = `<span class="rt-live-dot" style="margin:0; width:7px; height:7px; display:inline-block;"></span> Membaca Bandwidth...`;
   }
 
   container.innerHTML = `<div class="rt-traffic-empty" style="color:var(--accent);">Membaca telemetri bandwidth interface via SSH...</div>`;
@@ -4942,13 +4948,21 @@ async function loadRouterTraffic(routerId) {
 function selectRouterForInspection(routerId) {
   if (selectedRouterForClients === routerId) return;
   selectedRouterForClients = routerId;
+  currentInspectedClients = [];
   renderRoutersView();
 }
 
 async function inspectRouterClients(routerId) {
   const container = $('#router-clients-container');
   const scanBtn = $('#rt-scan-clients-btn');
-  if (scanBtn) scanBtn.classList.add('spinning');
+  if (scanBtn) {
+    scanBtn.disabled = true;
+    scanBtn.classList.remove('spinning');
+    scanBtn.innerHTML = `
+      <span class="rt-live-dot" style="margin:0; width:7px; height:7px; display:inline-block;"></span>
+      Memindai Klien...
+    `;
+  }
   if (!container) return;
 
   container.innerHTML = `
@@ -4991,7 +5005,14 @@ async function inspectRouterClients(routerId) {
       </div>
     `;
   } finally {
-    if (scanBtn) scanBtn.classList.remove('spinning');
+    if (scanBtn) {
+      scanBtn.disabled = false;
+      scanBtn.classList.remove('spinning');
+      scanBtn.innerHTML = `
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        Pindai Klien Live
+      `;
+    }
   }
 }
 
@@ -5526,7 +5547,7 @@ async function deleteRouter(id, name) {
 async function testRouterConnection(id, btn) {
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spinning"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg> Menguji...`;
+    btn.innerHTML = `<span class="rt-live-dot" style="margin:0; width:6px; height:6px; display:inline-block;"></span> Menguji...`;
   }
   try {
     const res = await api.post(`/api/devices/routers/${id}/test`);

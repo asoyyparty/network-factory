@@ -6432,6 +6432,14 @@ button:focus:not(:focus-visible) { outline: none; }
 .rt-btn-refresh.spinning svg {
   animation: spin 0.7s linear infinite;
 }
+#rt-scan-clients-btn svg,
+#rt-scan-clients-btn.spinning svg {
+  animation: none !important;
+}
+#rt-scan-clients-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
 
 .rt-btn-add {
   background: rgba(56, 189, 248, 0.15);
