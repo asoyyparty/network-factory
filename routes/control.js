@@ -403,7 +403,12 @@ router.get('/backup', async (req, res) => {
         sqlDump += `DROP TABLE IF EXISTS \`${table}\`;\n`;
         sqlDump += `${createSql};\n\n`;
 
-        // Fetch data
+        // Fetch data (lewati baris data ping_history agar backup tetap ringan dan cepat)
+        if (table === 'ping_history') {
+          sqlDump += `-- Data ping_history dilewati untuk efisiensi ukuran backup\n\n`;
+          continue;
+        }
+
         const [dataRows] = await db.query(`SELECT * FROM \`${table}\``);
         if (dataRows.length > 0) {
           sqlDump += `-- Dumping data for table \`${table}\` (${dataRows.length} rows)\n`;

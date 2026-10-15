@@ -15,6 +15,8 @@ const confirmedDownAlerted = new Set(); // deviceId -> set perangkat yang sudah 
 
 let wsServer  = null;
 let isCycling = false;
+let lastCleanupTime = 0;
+const CLEANUP_INTERVAL_MS = 60 * 60 * 1000; // Jalankan pembersihan history setiap 1 jam sekali
 
 /* Kirim pesan ke semua WebSocket client yang terhubung */
 function broadcast(data) {
@@ -162,17 +164,23 @@ async function runCycle() {
     const onlineCount = results.filter(r => r.online).length;
     console.log(`[Ping] Selesai: ${onlineCount}/${results.length} online`);
 
-    // Bersihkan history lama
-    await db.execute(`
-      DELETE FROM ping_history
-      WHERE pinged_at < DATE_SUB(NOW(), INTERVAL ? DAY)
-    `, [HISTORY_DAYS]);
+    // Bersihkan history lama dan audit logs berkala (setiap 1 jam, tidak perlu setiap siklus ping)
+    const now = Date.now();
+    if (now - lastCleanupTime > CLEANUP_INTERVAL_MS) {
+      lastCleanupTime = now;
+      const [delPing] = await db.execute(`
+        DELETE FROM ping_history
+        WHERE pinged_at < DATE_SUB(NOW(), INTERVAL ? DAY)
+      `, [HISTORY_DAYS]);
 
-    // Bersihkan audit logs yang lebih dari 30 hari
-    await db.execute(`
-      DELETE FROM audit_logs
-      WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
-    `);
+      const [delAudit] = await db.execute(`
+        DELETE FROM audit_logs
+        WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
+      `);
+      if (delPing.affectedRows > 0 || delAudit.affectedRows > 0) {
+        console.log(`[AutoCleanup] Berhasil membersihkan: ${delPing.affectedRows} ping log lama, ${delAudit.affectedRows} audit log lama.`);
+      }
+    }
 
   } catch (err) {
     console.error('[Ping] Error siklus:', err.message);
